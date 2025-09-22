@@ -13,7 +13,9 @@ import ResourceGroups from "@/pages/ResourceGroups";
 import ResourceGroupDetail from "@/pages/ResourceGroupDetail";
 import AllServices from "@/pages/AllServices";
 import CreateResourceGroup from "@/pages/CreateResourceGroup";
-import NotFound from "./pages/NotFound";
+import { VirtualMachines } from "@/pages/VirtualMachines";
+import { NotFound } from "@/pages/NotFound";
+import { Index } from '@/pages/Index';
 
 const queryClient = new QueryClient();
 
@@ -36,14 +38,30 @@ const App = () => {
               <Sidebar isCollapsed={sidebarCollapsed} />
               <main className="flex-1 overflow-auto">
                 <Routes>
+                  <Route path="/index" element={<Index />} />
                   <Route path="/" element={<Dashboard />} />
+                  <Route path="/all-services" element={<AllServices />} />
+                  <Route path="/create" element={<CreateResource />} />
                   <Route path="/create-resource" element={<CreateResource />} />
                   <Route path="/create/storage-account" element={<CreateStorageAccount />} />
                   <Route path="/create/:serviceId" element={<CreateStorageAccount />} />
                   <Route path="/create/resource-group" element={<CreateResourceGroup />} />
                   <Route path="/resource-groups" element={<ResourceGroups />} />
                   <Route path="/resource-groups/:id" element={<ResourceGroupDetail />} />
-                  <Route path="/all-services" element={<AllServices />} />
+                  <Route path="/virtual-machines" element={<VirtualMachines />} />
+                  <Route path="/storage-accounts" element={<CreateStorageAccount />} />
+                  <Route path="/function-apps" element={<AllServices />} />
+                  <Route path="/sql-databases" element={<AllServices />} />
+                  <Route path="/app-services" element={<AllServices />} />
+                  <Route path="/key-vaults" element={<AllServices />} />
+                  <Route path="/virtual-networks" element={<AllServices />} />
+                  <Route path="/kubernetes-service" element={<AllServices />} />
+                  <Route path="/marketplace" element={<CreateResource />} />
+                  <Route path="/cost-management" element={<AllServices />} />
+                  <Route path="/monitor" element={<AllServices />} />
+                  <Route path="/advisor" element={<AllServices />} />
+                  <Route path="/security-center" element={<AllServices />} />
+                  <Route path="/subscriptions" element={<AllServices />} />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>

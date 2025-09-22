@@ -12,7 +12,15 @@ import {
   Shield, 
   MessageSquare,
   ChevronRight,
-  Star
+  Star,
+  Plus,
+  Monitor,
+  Globe,
+  Key,
+  Network,
+  Box,
+  DollarSign,
+  Lightbulb
 } from 'lucide-react';
 import { trackEvent, AnalyticsEvents } from '@/data/mockData';
 
@@ -36,7 +44,8 @@ const navSections: NavSection[] = [
   {
     items: [
       { to: '/', icon: Home, label: 'Home' },
-      { to: '/all-services', icon: Grid3x3, label: 'All services' }
+      { to: '/all-services', icon: Grid3x3, label: 'All services' },
+      { to: '/create', icon: Plus, label: 'Create a resource' }
     ]
   },
   {
@@ -49,17 +58,24 @@ const navSections: NavSection[] = [
   {
     title: 'Services',
     items: [
-      { to: '/storage', icon: Database, label: 'Storage accounts' },
+      { to: '/virtual-machines', icon: Monitor, label: 'Virtual machines' },
+      { to: '/storage-accounts', icon: Database, label: 'Storage accounts' },
       { to: '/function-apps', icon: Zap, label: 'Function Apps' },
-      { to: '/sql-databases', icon: Database, label: 'SQL databases' }
+      { to: '/sql-databases', icon: Database, label: 'SQL databases' },
+      { to: '/app-services', icon: Globe, label: 'App Services' },
+      { to: '/key-vaults', icon: Key, label: 'Key vaults' },
+      { to: '/virtual-networks', icon: Network, label: 'Virtual networks' },
+      { to: '/kubernetes-service', icon: Box, label: 'Kubernetes services' }
     ]
   },
   {
     title: 'General',
     items: [
       { to: '/marketplace', icon: ShoppingCart, label: 'Marketplace' },
-      { to: '/monitoring', icon: BarChart3, label: 'Monitor' },
-      { to: '/security', icon: Shield, label: 'Microsoft Defender for Cloud' }
+      { to: '/cost-management', icon: DollarSign, label: 'Cost Management + Billing' },
+      { to: '/monitor', icon: BarChart3, label: 'Monitor' },
+      { to: '/advisor', icon: Lightbulb, label: 'Advisor' },
+      { to: '/security-center', icon: Shield, label: 'Microsoft Defender for Cloud' }
     ]
   }
 ];
