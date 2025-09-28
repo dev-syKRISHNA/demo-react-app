@@ -8,9 +8,11 @@ import {
   AnalyticsEvents,
   AzureService 
 } from '@/data/mockData';
+import { useAppStore } from '@/lib/store';
 
 const AllServices: React.FC = () => {
   const navigate = useNavigate();
+  useAppStore((s) => s.resources);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [favorites, setFavorites] = useState<string[]>([]);

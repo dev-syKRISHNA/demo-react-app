@@ -6,6 +6,7 @@ import {
   AnalyticsEvents,
   mockSubscriptions 
 } from '@/data/mockData';
+import { actions } from '@/lib/store';
 
 interface FormData {
   subscription: string;
@@ -21,7 +22,7 @@ interface ValidationErrors {
 const CreateResourceGroup: React.FC = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState<FormData>({
-    subscription: 'VS Enterprise-Rakesh',
+    subscription: 'Cognior Enterprise',
     resourceGroupName: '',
     region: '(US) East US',
     tags: {}
@@ -87,19 +88,21 @@ const CreateResourceGroup: React.FC = () => {
       return;
     }
 
+    const created = actions.createResourceGroup({
+      name: formData.resourceGroupName,
+      subscription: formData.subscription,
+      location: formData.region.replace(/^\([^\)]+\)\s*/, ''),
+      tags: formData.tags,
+    });
+
     trackEvent(AnalyticsEvents.RESOURCE_CREATE_COMPLETE, {
       resourceType: 'Resource Group',
-      resourceName: formData.resourceGroupName,
-      subscription: formData.subscription,
-      region: formData.region
+      resourceName: created.name,
+      subscription: created.subscription,
+      region: created.location
     });
     
-    // Simulate creation success
-    navigate('/resource-groups', { 
-      state: { 
-        message: `Resource group "${formData.resourceGroupName}" created successfully` 
-      }
-    });
+    navigate('/resource-groups');
   };
 
   const handleCancel = () => {

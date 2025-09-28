@@ -59,7 +59,25 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <button id="boot">Boot DAP</button>
+    <div id="root"> </div>
+   
     <script type="module" src="/src/main.tsx"></script>
+    <script src="/index.global.js"></script>
+    <script>
+    // Load DAP configuration
+    fetch('/dap-config.json')
+      .then(response => response.json())
+      .then(config => {
+      console.log('DAP config loaded:', config);
+      
+      document.getElementById('boot').addEventListener('click', () => {
+        DAP.init({ configUrl: '/dap-config.json', debug: true })
+        .catch(err => console.error('DAP init failed:', err));
+      });
+      })
+      .catch(err => console.error('Failed to load DAP config:', err));
+ </script>
+    
   </body>
 </html>

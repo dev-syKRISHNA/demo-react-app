@@ -9,6 +9,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Dashboard } from "@/pages/Dashboard";
 import CreateResource from "@/pages/CreateResource";
 import CreateStorageAccount from "@/pages/CreateStorageAccount";
+import StorageAccounts from "@/pages/StorageAccounts";
 import ResourceGroups from "@/pages/ResourceGroups";
 import ResourceGroupDetail from "@/pages/ResourceGroupDetail";
 import AllServices from "@/pages/AllServices";
@@ -16,6 +17,11 @@ import CreateResourceGroup from "@/pages/CreateResourceGroup";
 import { VirtualMachines } from "@/pages/VirtualMachines";
 import { NotFound } from "@/pages/NotFound";
 import { Index } from '@/pages/Index';
+import CreateFunctionApp from "@/pages/CreateFunctionApp";
+import FunctionApps from "@/pages/FunctionApps";
+import ResourceDetail from "@/pages/ResourceDetail";
+import CreateSqlDatabase from "@/pages/CreateSqlDatabase";
+import SqlDatabases from "@/pages/SqlDatabases";
 
 const queryClient = new QueryClient();
 
@@ -49,8 +55,13 @@ const App = () => {
                   <Route path="/resource-groups" element={<ResourceGroups />} />
                   <Route path="/resource-groups/:id" element={<ResourceGroupDetail />} />
                   <Route path="/virtual-machines" element={<VirtualMachines />} />
-                  <Route path="/storage-accounts" element={<CreateStorageAccount />} />
+                  <Route path="/storage-accounts" element={<StorageAccounts />} />
                   <Route path="/function-apps" element={<AllServices />} />
+                  <Route path="/create/function-app" element={<CreateFunctionApp />} />
+                  <Route path="/function-apps" element={<FunctionApps />} />
+                  <Route path="/resources/:id" element={<ResourceDetail />} />
+                  <Route path="/create/sql-database" element={<CreateSqlDatabase />} />
+                  <Route path="/sql-databases" element={<SqlDatabases />} />
                   <Route path="/sql-databases" element={<AllServices />} />
                   <Route path="/app-services" element={<AllServices />} />
                   <Route path="/key-vaults" element={<AllServices />} />

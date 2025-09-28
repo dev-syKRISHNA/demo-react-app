@@ -53,7 +53,7 @@ export interface AzureService {
 export const mockSubscriptions: Subscription[] = [
   {
     id: '1',
-    name: 'VS Enterprise-Rakesh',
+    name: 'Cognior Enterprise',
     subscriptionId: '12345678-1234-1234-1234-123456789012',
     status: 'Active',
     directory: 'Default Directory (RAKS777G...)'
@@ -72,7 +72,7 @@ export const mockResourceGroups: ResourceGroup[] = [
   {
     id: '1',
     name: 'Analytics',
-    subscription: 'VS Enterprise-Rakesh',
+    subscription: 'Cognior Enterprise',
     location: 'East US',
     resourceCount: 8,
     status: 'Active',
@@ -82,7 +82,7 @@ export const mockResourceGroups: ResourceGroup[] = [
   {
     id: '2',
     name: 'CogniorAnalytics',
-    subscription: 'VS Enterprise-Rakesh',
+    subscription: 'Cognior Enterprise',
     location: 'West US 2', 
     resourceCount: 12,
     status: 'Active',
@@ -109,7 +109,7 @@ export const mockResources: Resource[] = [
     type: 'Resource group',
     resourceGroup: '',
     location: 'East US',
-    subscription: 'VS Enterprise-Rakesh',
+    subscription: 'Cognior Enterprise',
     status: 'Running',
     lastViewed: 'a few seconds ago',
     tags: { environment: 'production' },
@@ -121,7 +121,7 @@ export const mockResources: Resource[] = [
     type: 'SQL database',
     resourceGroup: 'Analytics',
     location: 'East US',
-    subscription: 'VS Enterprise-Rakesh',
+    subscription: 'Cognior Enterprise',
     status: 'Running',
     lastViewed: '2 weeks ago',
     tags: { tier: 'standard' },
@@ -133,7 +133,7 @@ export const mockResources: Resource[] = [
     type: 'Function App',
     resourceGroup: 'CogniorAnalytics',
     location: 'West US 2',
-    subscription: 'VS Enterprise-Rakesh',
+    subscription: 'Cognior Enterprise',
     status: 'Running',
     lastViewed: '3 weeks ago',
     tags: { runtime: 'dotnet' },
@@ -145,7 +145,7 @@ export const mockResources: Resource[] = [
     type: 'Storage account',
     resourceGroup: 'CogniorAnalytics',
     location: 'West US 2',
-    subscription: 'VS Enterprise-Rakesh',
+    subscription: 'Cognior Enterprise',
     status: 'Running',
     lastViewed: '3 weeks ago',
     tags: { replication: 'LRS' },
@@ -157,7 +157,7 @@ export const mockResources: Resource[] = [
     type: 'Synapse workspace',
     resourceGroup: 'Analytics',
     location: 'East US',
-    subscription: 'VS Enterprise-Rakesh',
+    subscription: 'Cognior Enterprise',
     status: 'Running',
     lastViewed: 'a month ago',
     tags: { environment: 'production' },
@@ -169,7 +169,7 @@ export const mockResources: Resource[] = [
     type: 'Managed Identity',
     resourceGroup: 'Analytics',
     location: 'East US',
-    subscription: 'VS Enterprise-Rakesh',
+    subscription: 'Cognior Enterprise',
     status: 'Running',
     lastViewed: 'a month ago',
     tags: { type: 'system-assigned' },
@@ -181,7 +181,7 @@ export const mockResources: Resource[] = [
     type: 'SQL server',
     resourceGroup: 'Analytics',
     location: 'East US',
-    subscription: 'VS Enterprise-Rakesh',
+    subscription: 'Cognior Enterprise',
     status: 'Running',
     lastViewed: 'a month ago',
     tags: { version: '12.0' },
@@ -189,11 +189,11 @@ export const mockResources: Resource[] = [
   },
   {
     id: '8',
-    name: 'VS Enterprise-Rakesh',
+    name: 'Cognior Enterprise',
     type: 'Subscription',
     resourceGroup: '',
     location: 'Global',
-    subscription: 'VS Enterprise-Rakesh',
+    subscription: 'Cognior Enterprise',
     status: 'Running',
     lastViewed: '2 months ago',
     tags: {},
@@ -356,6 +356,9 @@ export const trackEvent = (eventName: string, properties?: Record<string, any>) 
 
 // Common event types
 export const AnalyticsEvents = {
+  // Timing
+  TIMER_START: 'timer_start',
+  TIMER_END: 'timer_end',
   // Navigation
   PAGE_VIEW: 'page_view',
   NAVIGATION_CLICK: 'navigation_click',

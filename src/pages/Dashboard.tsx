@@ -16,11 +16,11 @@ import {
 } from 'lucide-react';
 import { ServiceTile } from '@/components/ServiceTile';
 import { 
-  mockResources, 
   trackEvent, 
   AnalyticsEvents,
   Resource
 } from '@/data/mockData';
+import { useAppStore } from '@/lib/store';
 
 interface ResourceTableProps {
   resources: Resource[];
@@ -100,7 +100,7 @@ const ResourceTable: React.FC<ResourceTableProps> = ({ resources, onToggleFavori
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'recent' | 'favorite'>('recent');
-  const [resources, setResources] = useState<Resource[]>(mockResources);
+  const resources = useAppStore((s) => s.resources);
 
   useEffect(() => {
     trackEvent(AnalyticsEvents.PAGE_VIEW, { page: 'dashboard' });
@@ -114,15 +114,7 @@ export const Dashboard: React.FC = () => {
     navigate(path);
   };
 
-  const handleToggleFavorite = (resourceId: string) => {
-    setResources(prev =>
-      prev.map(resource =>
-        resource.id === resourceId
-          ? { ...resource, isFavorite: !resource.isFavorite }
-          : resource
-      )
-    );
-  };
+  const handleToggleFavorite = () => {};
 
   const filteredResources = resources.filter(resource =>
     activeTab === 'recent' ? true : resource.isFavorite

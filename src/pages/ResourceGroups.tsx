@@ -2,18 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Filter, MoreHorizontal, Star, StarOff } from 'lucide-react';
 import { 
-  mockResourceGroups, 
   trackEvent, 
   AnalyticsEvents,
   ResourceGroup
 } from '@/data/mockData';
+import { useAppStore } from '@/lib/store';
 
 const ResourceGroups: React.FC = () => {
   const navigate = useNavigate();
-  const [resourceGroups, setResourceGroups] = useState<ResourceGroup[]>(mockResourceGroups);
+  const resourceGroups = useAppStore((s) => s.resourceGroups);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
-  const [filteredGroups, setFilteredGroups] = useState<ResourceGroup[]>(mockResourceGroups);
+  const [filteredGroups, setFilteredGroups] = useState<ResourceGroup[]>(resourceGroups);
 
   useEffect(() => {
     trackEvent(AnalyticsEvents.PAGE_VIEW, { page: 'resource_groups' });

@@ -7,6 +7,7 @@ import {
   mockSubscriptions,
   mockResourceGroups 
 } from '@/data/mockData';
+import { actions } from '@/lib/store';
 
 interface FormData {
   subscription: string;
@@ -16,6 +17,37 @@ interface FormData {
   performance: 'Standard' | 'Premium';
   redundancy: string;
   enableReadAccess: boolean;
+  accessTier: 'Hot' | 'Cool' | 'Archive';
+  connectivity: 'Public endpoint' | 'Private endpoint';
+  firewallIp: string;
+  usePrivateEndpoint: boolean;
+  softDelete: boolean;
+  versioning: boolean;
+  blobRestore: boolean;
+  encryptionKeyType: 'Microsoft-managed' | 'Customer-managed';
+  cmkUri: string;
+  // Advanced - Security
+  requireSecureTransfer: boolean;
+  allowAnonymousAccess: boolean;
+  enableAccountKeyAccess: boolean;
+  defaultToEntraAuthInPortal: boolean;
+  minimumTlsVersion: 'Version 1.2' | 'Version 1.1' | 'Version 1.0';
+  permittedCopyScope: 'From any storage account' | 'From selected storage accounts';
+  // Advanced - Hierarchical namespace / Access protocols / Blob storage / Azure Files
+  hierarchicalNamespace: boolean;
+  enableSftp: boolean;
+  enableNfsV3: boolean;
+  crossTenantReplication: boolean;
+  enableLargeFileShares: boolean;
+  // Networking
+  publicNetworkAccess: 'Enable' | 'Disable' | 'Secure by perimeter (Most restricted)';
+  publicNetworkAccessScope: 'Enable from all networks' | 'Enable from selected virtual networks and IP addresses';
+  // Data protection
+  daysToRetainDeletedBlobs: number;
+  daysToRetainDeletedContainers: number;
+  daysToRetainDeletedFileShares: number;
+  enableBlobChangeFeed: boolean;
+  enableImmutabilitySupport: boolean;
 }
 
 interface ValidationErrors {
@@ -26,13 +58,40 @@ const CreateStorageAccount: React.FC = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<FormData>({
-    subscription: 'VS Enterprise-Rakesh',
+    subscription: 'Cognior Enterprise',
     resourceGroup: 'Analytics',
     storageAccountName: '',
     region: '(Asia Pacific) Central India',
     performance: 'Standard',
     redundancy: 'Geo-redundant storage (GRS)',
-    enableReadAccess: true
+    enableReadAccess: true,
+    accessTier: 'Hot',
+    connectivity: 'Public endpoint',
+    firewallIp: '',
+    usePrivateEndpoint: false,
+    softDelete: true,
+    versioning: true,
+    blobRestore: false,
+    encryptionKeyType: 'Microsoft-managed',
+    cmkUri: '',
+    requireSecureTransfer: true,
+    allowAnonymousAccess: false,
+    enableAccountKeyAccess: true,
+    defaultToEntraAuthInPortal: false,
+    minimumTlsVersion: 'Version 1.2',
+    permittedCopyScope: 'From any storage account',
+    hierarchicalNamespace: false,
+    enableSftp: false,
+    enableNfsV3: false,
+    crossTenantReplication: false,
+    enableLargeFileShares: true,
+    publicNetworkAccess: 'Enable',
+    publicNetworkAccessScope: 'Enable from all networks',
+    daysToRetainDeletedBlobs: 7,
+    daysToRetainDeletedContainers: 7,
+    daysToRetainDeletedFileShares: 7,
+    enableBlobChangeFeed: false,
+    enableImmutabilitySupport: false
   });
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [isValid, setIsValid] = useState(false);
@@ -132,19 +191,65 @@ const CreateStorageAccount: React.FC = () => {
   };
 
   const handleSubmit = () => {
+    if (!isValid) {
+      trackEvent(AnalyticsEvents.FORM_VALIDATION_ERROR, {
+        errors: Object.keys(errors),
+        resourceType: 'Storage Account'
+      });
+      return;
+    }
+
+    const created = actions.createStorageAccount({
+      name: formData.storageAccountName,
+      subscription: formData.subscription,
+      resourceGroup: formData.resourceGroup,
+      location: formData.region.replace(/^\([^\)]+\)\s*/, ''),
+      redundancy: formData.redundancy,
+      performance: formData.performance,
+    });
+
+    // Persist advanced settings as tags for analytics/management
+    actions.updateResource(created.id, {
+      tags: {
+        ...created.tags,
+        accessTier: formData.accessTier,
+        connectivity: formData.connectivity,
+        firewallIp: formData.firewallIp,
+        usePrivateEndpoint: String(formData.usePrivateEndpoint),
+        softDelete: String(formData.softDelete),
+        versioning: String(formData.versioning),
+        blobRestore: String(formData.blobRestore),
+        encryptionKeyType: formData.encryptionKeyType,
+        cmkUri: formData.cmkUri,
+        requireSecureTransfer: String(formData.requireSecureTransfer),
+        allowAnonymousAccess: String(formData.allowAnonymousAccess),
+        enableAccountKeyAccess: String(formData.enableAccountKeyAccess),
+        defaultToEntraAuthInPortal: String(formData.defaultToEntraAuthInPortal),
+        minimumTlsVersion: formData.minimumTlsVersion,
+        permittedCopyScope: formData.permittedCopyScope,
+        hierarchicalNamespace: String(formData.hierarchicalNamespace),
+        enableSftp: String(formData.enableSftp),
+        enableNfsV3: String(formData.enableNfsV3),
+        crossTenantReplication: String(formData.crossTenantReplication),
+        enableLargeFileShares: String(formData.enableLargeFileShares),
+        publicNetworkAccess: formData.publicNetworkAccess,
+        publicNetworkAccessScope: formData.publicNetworkAccessScope,
+        daysToRetainDeletedBlobs: String(formData.daysToRetainDeletedBlobs),
+        daysToRetainDeletedContainers: String(formData.daysToRetainDeletedContainers),
+        daysToRetainDeletedFileShares: String(formData.daysToRetainDeletedFileShares),
+        enableBlobChangeFeed: String(formData.enableBlobChangeFeed),
+        enableImmutabilitySupport: String(formData.enableImmutabilitySupport),
+      },
+    });
+
     trackEvent(AnalyticsEvents.RESOURCE_CREATE_COMPLETE, {
       resourceType: 'Storage Account',
-      resourceName: formData.storageAccountName,
-      subscription: formData.subscription,
-      resourceGroup: formData.resourceGroup
+      resourceName: created.name,
+      subscription: created.subscription,
+      resourceGroup: created.resourceGroup
     });
     
-    // Simulate creation success
-    navigate('/', { 
-      state: { 
-        message: `Storage account "${formData.storageAccountName}" created successfully` 
-      }
-    });
+    navigate('/storage-accounts');
   };
 
   const handleCancel = () => {
@@ -450,11 +555,273 @@ const CreateStorageAccount: React.FC = () => {
               </div>
             )}
 
-            {currentStep > 0 && (
-              <div className="text-center py-12">
-                <p className="text-foreground-secondary">
-                  {steps[currentStep]} configuration would be implemented here in a full version.
-                </p>
+            {currentStep === 1 && (
+              <div className="space-y-6">
+                <h3 className="text-lg font-medium text-foreground mb-4">Advanced</h3>
+                <div className="space-y-6">
+                  {/* Security */}
+                  <div>
+                    <h4 className="font-medium mb-2">Security</h4>
+                    <div className="space-y-2">
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" checked={formData.requireSecureTransfer} onChange={(e) => handleInputChange('requireSecureTransfer', e.target.checked)} />
+                        <span>Require secure transfer for REST API operations</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" checked={formData.allowAnonymousAccess} onChange={(e) => handleInputChange('allowAnonymousAccess', e.target.checked)} />
+                        <span>Allow enabling anonymous access on individual containers</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" checked={formData.enableAccountKeyAccess} onChange={(e) => handleInputChange('enableAccountKeyAccess', e.target.checked)} />
+                        <span>Enable storage account key access</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" checked={formData.defaultToEntraAuthInPortal} onChange={(e) => handleInputChange('defaultToEntraAuthInPortal', e.target.checked)} />
+                        <span>Default to Microsoft Entra authorization in the Azure portal</span>
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Minimum TLS version</label>
+                        <select className="azure-select" value={formData.minimumTlsVersion} onChange={(e) => handleInputChange('minimumTlsVersion', e.target.value as any)}>
+                          <option>Version 1.2</option>
+                          <option>Version 1.1</option>
+                          <option>Version 1.0</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Permitted scope for copy operations</label>
+                        <select className="azure-select" value={formData.permittedCopyScope} onChange={(e) => handleInputChange('permittedCopyScope', e.target.value as any)}>
+                          <option>From any storage account</option>
+                          <option>From selected storage accounts</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Hierarchical namespace */}
+                  <div>
+                    <h4 className="font-medium mb-2">Hierarchical Namespace</h4>
+                    <label className="flex items-center space-x-2">
+                      <input type="checkbox" checked={formData.hierarchicalNamespace} onChange={(e) => handleInputChange('hierarchicalNamespace', e.target.checked)} />
+                      <span>Enable hierarchical namespace</span>
+                    </label>
+                  </div>
+
+                  {/* Access protocols */}
+                  <div>
+                    <h4 className="font-medium mb-2">Access protocols</h4>
+                    <label className="flex items-center space-x-2">
+                      <input type="checkbox" checked={formData.enableSftp} onChange={(e) => handleInputChange('enableSftp', e.target.checked)} />
+                      <span>Enable SFTP</span>
+                    </label>
+                    <label className="flex items-center space-x-2 mt-2">
+                      <input type="checkbox" checked={formData.enableNfsV3} onChange={(e) => handleInputChange('enableNfsV3', e.target.checked)} />
+                      <span>Enable network file system v3</span>
+                    </label>
+                  </div>
+
+                  {/* Blob storage */}
+                  <div>
+                    <h4 className="font-medium mb-2">Blob storage</h4>
+                    <label className="flex items-center space-x-2 mb-2">
+                      <input type="checkbox" checked={formData.crossTenantReplication} onChange={(e) => handleInputChange('crossTenantReplication', e.target.checked)} />
+                      <span>Allow cross-tenant replication</span>
+                    </label>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Access tier</label>
+                      <div className="space-y-2">
+                        {(['Hot','Cool','Archive'] as const).map((tier) => (
+                          <label key={tier} className="flex items-center space-x-2">
+                            <input type="radio" name="accessTier" checked={formData.accessTier === tier} onChange={() => handleInputChange('accessTier', tier)} />
+                            <span>{tier}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Azure Files */}
+                  <div>
+                    <h4 className="font-medium mb-2">Azure Files</h4>
+                    <label className="flex items-center space-x-2">
+                      <input type="checkbox" checked={formData.enableLargeFileShares} onChange={(e) => handleInputChange('enableLargeFileShares', e.target.checked)} />
+                      <span>Enable large file shares</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {currentStep === 2 && (
+              <div className="space-y-6">
+                <h3 className="text-lg font-medium text-foreground mb-4">Networking</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Public network access</label>
+                    <div className="space-y-2">
+                      {(['Enable','Disable','Secure by perimeter (Most restricted)'] as const).map((opt) => (
+                        <label key={opt} className="flex items-center space-x-2">
+                          <input type="radio" name="pna" checked={formData.publicNetworkAccess === opt} onChange={() => handleInputChange('publicNetworkAccess', opt)} />
+                          <span>{opt}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  {formData.connectivity === 'Public endpoint' && (
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Firewall IP (optional)</label>
+                      <input
+                        className="azure-input"
+                        value={formData.firewallIp}
+                        onChange={(e) => handleInputChange('firewallIp', e.target.value)}
+                        placeholder="e.g. 52.160.10.1"
+                      />
+                    </div>
+                  )}
+                  {formData.connectivity === 'Private endpoint' && (
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.usePrivateEndpoint}
+                        onChange={(e) => handleInputChange('usePrivateEndpoint', e.target.checked)}
+                      />
+                      <span>Enable private endpoint</span>
+                    </label>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Public network access scope</label>
+                    <select className="azure-select" value={formData.publicNetworkAccessScope} onChange={(e) => handleInputChange('publicNetworkAccessScope', e.target.value as any)}>
+                      <option>Enable from all networks</option>
+                      <option>Enable from selected virtual networks and IP addresses</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {currentStep === 3 && (
+              <div className="space-y-6">
+                <h3 className="text-lg font-medium text-foreground mb-4">Data protection</h3>
+                <label className="flex items-center space-x-2">
+                  <input type="checkbox" checked={formData.softDelete} onChange={(e) => handleInputChange('softDelete', e.target.checked)} />
+                  <span>Enable soft delete for blobs</span>
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Days to retain deleted blobs</label>
+                    <input type="number" className="azure-input" value={formData.daysToRetainDeletedBlobs} onChange={(e) => handleInputChange('daysToRetainDeletedBlobs', Number(e.target.value))} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Days to retain deleted containers</label>
+                    <input type="number" className="azure-input" value={formData.daysToRetainDeletedContainers} onChange={(e) => handleInputChange('daysToRetainDeletedContainers', Number(e.target.value))} />
+                  </div>
+                </div>
+                <label className="flex items-center space-x-2">
+                  <input type="checkbox" checked={formData.versioning} onChange={(e) => handleInputChange('versioning', e.target.checked)} />
+                  <span>Enable versioning</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input type="checkbox" checked={formData.enableBlobChangeFeed} onChange={(e) => handleInputChange('enableBlobChangeFeed', e.target.checked)} />
+                  <span>Enable blob change feed</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input type="checkbox" checked={formData.enableImmutabilitySupport} onChange={(e) => handleInputChange('enableImmutabilitySupport', e.target.checked)} />
+                  <span>Enable version-level immutability support</span>
+                </label>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Days to retain deleted file shares</label>
+                  <input type="number" className="azure-input" value={formData.daysToRetainDeletedFileShares} onChange={(e) => handleInputChange('daysToRetainDeletedFileShares', Number(e.target.value))} />
+                </div>
+              </div>
+            )}
+
+            {currentStep === 4 && (
+              <div className="space-y-6">
+                <h3 className="text-lg font-medium text-foreground mb-4">Encryption</h3>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Key type</label>
+                  <select
+                    className="azure-select"
+                    value={formData.encryptionKeyType}
+                    onChange={(e) => handleInputChange('encryptionKeyType', e.target.value as any)}
+                  >
+                    <option>Microsoft-managed</option>
+                    <option>Customer-managed</option>
+                  </select>
+                </div>
+                {formData.encryptionKeyType === 'Customer-managed' && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Key URI</label>
+                    <input
+                      className="azure-input"
+                      value={formData.cmkUri}
+                      onChange={(e) => handleInputChange('cmkUri', e.target.value)}
+                      placeholder="https://myvault.vault.azure.net/keys/keyname/version"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {currentStep === 5 && (
+              <div className="space-y-6">
+                <h3 className="text-lg font-medium text-foreground mb-4">Tags</h3>
+                <p className="text-sm text-foreground-secondary">Add name/value pairs to categorize resources and view consolidated billing.</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Name</label>
+                    <input className="azure-input" placeholder="e.g. environment" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Value</label>
+                    <input className="azure-input" placeholder="e.g. production" />
+                  </div>
+                </div>
+                <div className="text-sm text-foreground-secondary">Tag persistence is simplified in this demo; use the Resource Detail page to edit saved tags.</div>
+              </div>
+            )}
+
+            {currentStep === 6 && (
+              <div className="space-y-6">
+                <h3 className="text-lg font-medium text-foreground">Review + create</h3>
+                <div className="bg-card border border-card-border rounded p-4 text-sm">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
+                    <div className="font-medium">Subscription</div><div className="text-foreground-secondary">{formData.subscription}</div>
+                    <div className="font-medium">Resource group</div><div className="text-foreground-secondary">{formData.resourceGroup}</div>
+                    <div className="font-medium">Location</div><div className="text-foreground-secondary">{formData.region.replace(/^\([^\)]+\)\s*/, '')}</div>
+                    <div className="font-medium">Storage account name</div><div className="text-foreground-secondary">{formData.storageAccountName || '-'}</div>
+                    <div className="font-medium">Performance</div><div className="text-foreground-secondary">{formData.performance}</div>
+                    <div className="font-medium">Replication</div><div className="text-foreground-secondary">{formData.redundancy}</div>
+                    <div className="font-medium">Access tier</div><div className="text-foreground-secondary">{formData.accessTier}</div>
+                    <div className="font-medium">Large file shares</div><div className="text-foreground-secondary">{formData.enableLargeFileShares ? 'Enabled' : 'Disabled'}</div>
+                    <div className="col-span-2 pt-2 font-medium">Security</div>
+                    <div>Require secure transfer</div><div className="text-foreground-secondary">{formData.requireSecureTransfer ? 'Enabled' : 'Disabled'}</div>
+                    <div>Blob anonymous access</div><div className="text-foreground-secondary">{formData.allowAnonymousAccess ? 'Enabled' : 'Disabled'}</div>
+                    <div>Storage account key access</div><div className="text-foreground-secondary">{formData.enableAccountKeyAccess ? 'Enabled' : 'Disabled'}</div>
+                    <div>Default to Entra auth in portal</div><div className="text-foreground-secondary">{formData.defaultToEntraAuthInPortal ? 'Enabled' : 'Disabled'}</div>
+                    <div>Minimum TLS version</div><div className="text-foreground-secondary">{formData.minimumTlsVersion}</div>
+                    <div>Permitted scope for copy operations</div><div className="text-foreground-secondary">{formData.permittedCopyScope}</div>
+                    <div className="col-span-2 pt-2 font-medium">Networking</div>
+                    <div>Public network access</div><div className="text-foreground-secondary">{formData.publicNetworkAccess}</div>
+                    <div>Public network access scope</div><div className="text-foreground-secondary">{formData.publicNetworkAccessScope}</div>
+                    <div>Private endpoint</div><div className="text-foreground-secondary">{formData.usePrivateEndpoint ? 'Enabled' : 'Disabled'}</div>
+                    <div>Firewall IP</div><div className="text-foreground-secondary">{formData.firewallIp || '-'}</div>
+                    <div className="col-span-2 pt-2 font-medium">Data protection</div>
+                    <div>Soft delete</div><div className="text-foreground-secondary">{formData.softDelete ? 'Enabled' : 'Disabled'}</div>
+                    <div>Blob retention (days)</div><div className="text-foreground-secondary">{formData.daysToRetainDeletedBlobs}</div>
+                    <div>Container retention (days)</div><div className="text-foreground-secondary">{formData.daysToRetainDeletedContainers}</div>
+                    <div>File shares retention (days)</div><div className="text-foreground-secondary">{formData.daysToRetainDeletedFileShares}</div>
+                    <div>Versioning</div><div className="text-foreground-secondary">{formData.versioning ? 'Enabled' : 'Disabled'}</div>
+                    <div>Change feed</div><div className="text-foreground-secondary">{formData.enableBlobChangeFeed ? 'Enabled' : 'Disabled'}</div>
+                    <div>Immutability</div><div className="text-foreground-secondary">{formData.enableImmutabilitySupport ? 'Enabled' : 'Disabled'}</div>
+                    <div className="col-span-2 pt-2 font-medium">Encryption</div>
+                    <div>Key type</div><div className="text-foreground-secondary">{formData.encryptionKeyType}</div>
+                    {formData.encryptionKeyType === 'Customer-managed' && (<>
+                      <div>Key URI</div><div className="text-foreground-secondary">{formData.cmkUri || '-'}</div>
+                    </>)}
+                  </div>
+                </div>
               </div>
             )}
           </div>
