@@ -11,206 +11,6 @@ var DAP = (function (exports) {
       __defProp(target, name, { get: all[name], enumerable: true });
   };
 
-  // src/utils/normalize.ts
-  function normalizePlacement(p) {
-    if (!p) return "top";
-    const s = p.trim().toLowerCase();
-    if (s.startsWith("top")) return "top";
-    if (s.startsWith("bottom")) return "bottom";
-    if (s.startsWith("left")) return "left";
-    if (s.startsWith("right")) return "right";
-    if (s === "auto") return "auto";
-    return "top";
-  }
-  var init_normalize = __esm({
-    "src/utils/normalize.ts"() {
-    }
-  });
-
-  // src/utils/selectors.ts
-  function resolveSelector(sel, root = document) {
-    if (!sel || typeof sel !== "string") return null;
-    try {
-      const cssEl = root.querySelector(sel);
-      if (cssEl) return cssEl;
-    } catch {
-    }
-    try {
-      const doc = root instanceof Document ? root : root.ownerDocument ?? document;
-      const result = doc.evaluate(
-        sel,
-        root,
-        null,
-        XPathResult.FIRST_ORDERED_NODE_TYPE,
-        null
-      );
-      const node = result.singleNodeValue;
-      if (node) return node;
-      if (sel.startsWith("/html[1]/body[1]/")) {
-        const simplified = sel.replace("/html[1]/body[1]/", "//");
-        const fallbackResult = doc.evaluate(
-          simplified,
-          root,
-          null,
-          XPathResult.FIRST_ORDERED_NODE_TYPE,
-          null
-        );
-        const fallbackNode = fallbackResult.singleNodeValue;
-        if (fallbackNode) {
-          console.debug(`[DAP] Found element using simplified XPath fallback: ${simplified}`);
-          return fallbackNode;
-        }
-      }
-    } catch (e) {
-    }
-    return null;
-  }
-  function waitForElement(selector, options = {}) {
-    const { timeout = 5e3, root = document } = options;
-    return new Promise((resolve, reject) => {
-      const existingElement = resolveSelector(selector, root);
-      if (existingElement) {
-        resolve(existingElement);
-        return;
-      }
-      let timeoutId;
-      let observer;
-      timeoutId = window.setTimeout(() => {
-        observer?.disconnect();
-        reject(new Error(`Element not found within timeout: ${selector}`));
-      }, timeout);
-      observer = new MutationObserver(() => {
-        const element = resolveSelector(selector, root);
-        if (element) {
-          clearTimeout(timeoutId);
-          observer.disconnect();
-          resolve(element);
-        }
-      });
-      observer.observe(root, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeOldValue: false
-      });
-    });
-  }
-  var init_selectors = __esm({
-    "src/utils/selectors.ts"() {
-    }
-  });
-
-  // src/utils/triggerNormalizer.ts
-  function normalizeTrigger(trigger) {
-    if (!trigger) {
-      console.warn("[DAP] No trigger specified, defaulting to click");
-      return { eventType: "click", isSynthetic: false };
-    }
-    const normalizedTrigger = trigger.toLowerCase().trim();
-    console.debug(`[DAP] Normalizing trigger: "${trigger}" \u2192 processing "${normalizedTrigger}"`);
-    if (normalizedTrigger === "on page load" || normalizedTrigger === "page load" || normalizedTrigger === "pageload") {
-      console.debug(`[DAP] Trigger normalized: "${trigger}" \u2192 synthetic page load`);
-      return { eventType: "pageload", isSynthetic: true };
-    }
-    if (normalizedTrigger === "on hover" || normalizedTrigger === "hover" || normalizedTrigger === "mouseover") {
-      console.debug(`[DAP] Trigger normalized: "${trigger}" \u2192 "mouseenter"`);
-      return { eventType: "mouseenter", isSynthetic: false };
-    }
-    if (normalizedTrigger === "on click" || normalizedTrigger === "click") {
-      console.debug(`[DAP] Trigger normalized: "${trigger}" \u2192 "click"`);
-      return { eventType: "click", isSynthetic: false };
-    }
-    if (normalizedTrigger === "on focus" || normalizedTrigger === "focus") {
-      console.debug(`[DAP] Trigger normalized: "${trigger}" \u2192 "focus"`);
-      return { eventType: "focus", isSynthetic: false };
-    }
-    if (normalizedTrigger === "on blur" || normalizedTrigger === "blur") {
-      console.debug(`[DAP] Trigger normalized: "${trigger}" \u2192 "blur"`);
-      return { eventType: "blur", isSynthetic: false };
-    }
-    if (normalizedTrigger === "on input" || normalizedTrigger === "input" || normalizedTrigger === "typing") {
-      console.debug(`[DAP] Trigger normalized: "${trigger}" \u2192 "input"`);
-      return { eventType: "input", isSynthetic: false };
-    }
-    if (normalizedTrigger === "on change" || normalizedTrigger === "change") {
-      console.debug(`[DAP] Trigger normalized: "${trigger}" \u2192 "change"`);
-      return { eventType: "change", isSynthetic: false };
-    }
-    if (normalizedTrigger === "on keydown" || normalizedTrigger === "keydown") {
-      console.debug(`[DAP] Trigger normalized: "${trigger}" \u2192 "keydown"`);
-      return { eventType: "keydown", isSynthetic: false };
-    }
-    if (normalizedTrigger === "on keyup" || normalizedTrigger === "keyup") {
-      console.debug(`[DAP] Trigger normalized: "${trigger}" \u2192 "keyup"`);
-      return { eventType: "keyup", isSynthetic: false };
-    }
-    console.warn(`[DAP] Unknown trigger type: "${trigger}", defaulting to click`);
-    return { eventType: "click", isSynthetic: false };
-  }
-  function waitForElement2(selector, options = {}) {
-    const {
-      timeout = 1e4,
-      // 10 seconds default
-      interval = 100,
-      // Check every 100ms
-      maxRetries = timeout / interval
-    } = options;
-    return new Promise((resolve, reject) => {
-      let attempts = 0;
-      const checkElement = () => {
-        attempts++;
-        console.debug(`[DAP] Attempting to find element (${attempts}/${maxRetries}): ${selector}`);
-        try {
-          const element = resolveSelector(selector);
-          if (element) {
-            console.debug(`[DAP] Element found after ${attempts} attempts: ${selector}`);
-            resolve(element);
-            return;
-          }
-        } catch (error) {
-          console.debug(`[DAP] Error finding element: ${error}`);
-        }
-        if (attempts >= maxRetries) {
-          console.warn(`[DAP] Element not found after ${attempts} attempts (${timeout}ms): ${selector}`);
-          reject(new Error(`Element not found: ${selector}`));
-          return;
-        }
-        setTimeout(checkElement, interval);
-      };
-      checkElement();
-    });
-  }
-  var init_triggerNormalizer = __esm({
-    "src/utils/triggerNormalizer.ts"() {
-      init_selectors();
-    }
-  });
-
-  // src/utils/idGenerator.ts
-  function isValidStepId(stepId) {
-    if (!stepId) return false;
-    const validPattern = /^(step-\d+|[mtps]\d+|[a-zA-Z0-9_-]+)$/;
-    return validPattern.test(stepId);
-  }
-  function generateStepId(prefix = "step", index) {
-    if (index !== void 0) {
-      return `${prefix}-${index}`;
-    }
-    const timestamp = Date.now().toString(36);
-    const randomSuffix = Math.random().toString(36).substring(2, 6);
-    return `${prefix}-${timestamp}${randomSuffix}`;
-  }
-  function normalizeStepId(stepId, fallbackPrefix = "step", index) {
-    if (isValidStepId(stepId)) {
-      return stepId;
-    }
-    return generateStepId(fallbackPrefix, index);
-  }
-  var init_idGenerator = __esm({
-    "src/utils/idGenerator.ts"() {
-    }
-  });
-
   // src/http.ts
   async function http(cfg, path, opts = {}) {
     const method = (opts.method || "GET").toUpperCase();
@@ -257,438 +57,351 @@ var DAP = (function (exports) {
     }
   });
 
+  // src/services/userContextService.ts
+  var _UserContextService, UserContextService, userContextService;
+  var init_userContextService = __esm({
+    "src/services/userContextService.ts"() {
+      _UserContextService = class _UserContextService {
+        constructor() {
+          this._user = null;
+          this._fallbackUserId = null;
+          this._eventListeners = [];
+          this.SESSION_STORAGE_KEY = "dap_user_context";
+          this.FALLBACK_USER_KEY = "dap_anonymous_user_id";
+          this.initializeFromStorage();
+          if (!this._user) {
+            this.autoDiscoverUser();
+          }
+          console.debug("[DAP UserContext] Service initialized");
+        }
+        /**
+         * Get singleton instance
+         */
+        static getInstance() {
+          if (!this._instance) {
+            this._instance = new _UserContextService();
+          }
+          return this._instance;
+        }
+        /**
+         * Initialize user context from sessionStorage
+         */
+        initializeFromStorage() {
+          try {
+            const storedUser = sessionStorage.getItem(this.SESSION_STORAGE_KEY);
+            if (storedUser) {
+              this._user = JSON.parse(storedUser);
+              console.debug("[DAP UserContext] Restored user from storage:", this._user?.id);
+            }
+            this._fallbackUserId = sessionStorage.getItem(this.FALLBACK_USER_KEY);
+            if (!this._fallbackUserId) {
+              this._fallbackUserId = this.generateFallbackUserId();
+              sessionStorage.setItem(this.FALLBACK_USER_KEY, this._fallbackUserId);
+              console.debug("[DAP UserContext] Generated fallback user ID:", this._fallbackUserId);
+            }
+          } catch (error) {
+            console.error("[DAP UserContext] Error initializing from storage:", error);
+            this._fallbackUserId = this.generateFallbackUserId();
+          }
+        }
+        /**
+         * Generate a stable unique fallback user ID
+         */
+        generateFallbackUserId() {
+          const timestamp = Date.now();
+          const random = Math.random().toString(36).substring(2, 15);
+          return `dap-anon-${timestamp}-${random}`;
+        }
+        /**
+         * Set user context (replaces existing user)
+         */
+        setUser(user) {
+          const normalizedUser = this.normalizeUser(user);
+          if (!normalizedUser || !normalizedUser.id) {
+            console.error("[DAP UserContext] Invalid user - id is required");
+            return;
+          }
+          const previousUser = this._user;
+          this._user = normalizedUser;
+          try {
+            sessionStorage.setItem(this.SESSION_STORAGE_KEY, JSON.stringify(this._user));
+          } catch (error) {
+            console.error("[DAP UserContext] Error persisting user:", error);
+          }
+          console.debug("[DAP UserContext] User set:", this._user.id);
+          this.notifyListeners({ type: "user-changed", user: this._user, previousUser });
+        }
+        /**
+         * Update user context (merge with existing data)
+         */
+        updateUser(partialUser) {
+          if (!this._user) {
+            console.warn("[DAP UserContext] Cannot update - no user context available");
+            return;
+          }
+          const previousUser = { ...this._user };
+          this._user = {
+            ...this._user,
+            ...partialUser,
+            // Merge attributes specifically
+            attributes: {
+              ...this._user.attributes,
+              ...partialUser.attributes
+            }
+          };
+          try {
+            sessionStorage.setItem(this.SESSION_STORAGE_KEY, JSON.stringify(this._user));
+          } catch (error) {
+            console.error("[DAP UserContext] Error persisting updated user:", error);
+          }
+          console.debug("[DAP UserContext] User updated:", this._user.id);
+          this.notifyListeners({ type: "user-changed", user: this._user, previousUser });
+        }
+        /**
+         * Helper to normalize user data from various possible formats
+         */
+        normalizeUser(data) {
+          if (!data) return null;
+          if (typeof data === "string") {
+            return { id: data };
+          }
+          const email = data.usermail || data.email || data.mailid || data.email_address || data.emailAddress || data.upn || data.unique_name;
+          const id = email || data.id || data.userId || data.userid || data.sub || data.user_id;
+          if (!id) return null;
+          const role = data.role || data.userRole || data.user_role;
+          const attributes = { ...data.attributes || {} };
+          const knownFields = [
+            "id",
+            "userId",
+            "userid",
+            "sub",
+            "user_id",
+            "email",
+            "usermail",
+            "mailid",
+            "emailAddress",
+            "email_address",
+            "role",
+            "userRole",
+            "user_role",
+            "attributes",
+            "username",
+            "upn",
+            "unique_name"
+          ];
+          Object.keys(data).forEach((key) => {
+            if (!knownFields.includes(key) && (typeof data[key] === "string" || typeof data[key] === "number" || typeof data[key] === "boolean")) {
+              attributes[key] = String(data[key]);
+            }
+          });
+          if (data.username && !attributes.username) attributes.username = String(data.username);
+          return {
+            id: String(id),
+            // Now this will be the email address if found
+            email: email ? String(email) : void 0,
+            role: role ? String(role) : void 0,
+            attributes
+          };
+        }
+        /**
+         * Attempt to discover user identity from the host environment
+         */
+        autoDiscoverUser() {
+          if (this.hasRealUser() && this._user?.id && !this._user.id.startsWith("dap-anon-")) {
+            return false;
+          }
+          console.debug("[DAP UserContext] Attempting auto-discovery...");
+          const windowObj = window;
+          const candidates = [
+            windowObj.DAP_USER,
+            windowObj.appUser,
+            windowObj.currentUser,
+            {
+              id: windowObj.usermail || windowObj.userEmail || windowObj.email || windowObj.userId || windowObj.userid || windowObj.user_id,
+              username: windowObj.username || windowObj.userName,
+              email: windowObj.usermail || windowObj.userEmail || windowObj.mailid || windowObj.email
+            }
+          ];
+          for (const candidate of candidates) {
+            if (!candidate) continue;
+            const normalized = this.normalizeUser(candidate);
+            if (normalized && normalized.id && typeof normalized.id === "string" && normalized.id.length > 0) {
+              console.debug("[DAP UserContext] Auto-discovered user:", normalized.id);
+              this.setUser(normalized);
+              return true;
+            }
+          }
+          const metaUserId = document.querySelector('meta[name="dap-user-id"]')?.getAttribute("content") || document.querySelector('meta[name="user-id"]')?.getAttribute("content") || document.querySelector('meta[name="userid"]')?.getAttribute("content");
+          if (metaUserId) {
+            console.debug("[DAP UserContext] Auto-discovered user from meta tag:", metaUserId);
+            const user = { id: metaUserId };
+            const metaEmail = document.querySelector('meta[name="user-email"]')?.getAttribute("content") || document.querySelector('meta[name="email"]')?.getAttribute("content");
+            if (metaEmail) user.email = metaEmail;
+            const metaRole = document.querySelector('meta[name="user-role"]')?.getAttribute("content") || document.querySelector('meta[name="role"]')?.getAttribute("content");
+            if (metaRole) user.role = metaRole;
+            this.setUser(user);
+            return true;
+          }
+          return false;
+        }
+        /**
+         * Get current user context
+         */
+        getUser() {
+          return this._user ? { ...this._user } : null;
+        }
+        /**
+         * Clear user context (reverts to anonymous)
+         */
+        clearUser() {
+          const previousUser = this._user;
+          this._user = null;
+          try {
+            sessionStorage.removeItem(this.SESSION_STORAGE_KEY);
+          } catch (error) {
+            console.error("[DAP UserContext] Error clearing user storage:", error);
+          }
+          console.debug("[DAP UserContext] User context cleared");
+          this.notifyListeners({ type: "user-cleared", user: null, previousUser });
+        }
+        /**
+         * Check if real user context is available (not anonymous)
+         */
+        hasRealUser() {
+          return this._user !== null;
+        }
+        /**
+         * Get analytics context for tracking
+         */
+        getAnalyticsContext() {
+          if (this._user) {
+            return {
+              userId: this._user.id,
+              // Current ID is the email address (per normalization logic)
+              role: this._user.role,
+              attributes: this._user.attributes,
+              isAnonymous: false
+            };
+          } else {
+            return {
+              userId: this._fallbackUserId || "unknown",
+              isAnonymous: true
+            };
+          }
+        }
+        /**
+         * Get user property for rule evaluation
+         * Supports: user.id, user.role, user.email, user.attributes.*
+         */
+        getUserProperty(propertyPath) {
+          if (!propertyPath.startsWith("user.")) {
+            return null;
+          }
+          const path = propertyPath.substring(5);
+          if (!this._user) {
+            if (path === "id" || path === "usermail") {
+              return this._fallbackUserId;
+            }
+            console.debug(`[DAP UserContext] Property ${propertyPath} not available - no user context`);
+            return null;
+          }
+          switch (path) {
+            case "id":
+            case "usermail":
+              return this._user.id;
+            case "role":
+              return this._user.role || null;
+            case "email":
+              return this._user.email || null;
+            default:
+              if (path.startsWith("attributes.")) {
+                const attributeKey = path.substring(11);
+                return this._user.attributes?.[attributeKey] || null;
+              }
+              console.warn(`[DAP UserContext] Unknown property path: ${propertyPath}`);
+              return null;
+          }
+        }
+        /**
+         * Subscribe to user context changes
+         */
+        onUserChange(callback) {
+          this._eventListeners.push(callback);
+          return () => {
+            const index = this._eventListeners.indexOf(callback);
+            if (index > -1) {
+              this._eventListeners.splice(index, 1);
+            }
+          };
+        }
+        /**
+         * Notify all listeners of user context changes
+         */
+        notifyListeners(event) {
+          this._eventListeners.forEach((callback) => {
+            try {
+              callback(event);
+            } catch (error) {
+              console.error("[DAP UserContext] Error in change listener:", error);
+            }
+          });
+        }
+        /**
+         * Debug method to get current state
+         */
+        getDebugState() {
+          return {
+            hasUser: this.hasRealUser(),
+            userId: this._user?.id || this._fallbackUserId,
+            userRole: this._user?.role,
+            isAnonymous: !this.hasRealUser(),
+            attributeCount: Object.keys(this._user?.attributes || {}).length
+          };
+        }
+      };
+      _UserContextService._instance = null;
+      UserContextService = _UserContextService;
+      userContextService = UserContextService.getInstance();
+    }
+  });
+
   // src/flows.ts
   var flows_exports = {};
   __export(flows_exports, {
     fetchFlowById: () => fetchFlowById,
-    fetchVisibleFlowIds: () => fetchVisibleFlowIds,
-    normalizeServerFlow: () => normalizeServerFlow
+    fetchVisibleFlowIds: () => fetchVisibleFlowIds
   });
-  function normalizeTriggerToLegacyFormat(trigger) {
-    const normalized = normalizeTrigger(trigger);
-    switch (normalized.eventType) {
-      case "mouseenter":
-      case "hover":
-        return "hover";
-      case "focus":
-      case "input":
-      case "change":
-        return "focus";
-      case "click":
-      case "keydown":
-      case "keyup":
-      default:
-        return "click";
-    }
-  }
   async function fetchVisibleFlowIds(cfg, hostBase, page) {
     const base = joinUrl(cfg.apiurl, `/iap-experience/${cfg.organizationid}/${cfg.siteid}/visible-flows`);
-    console.debug(`[DAP] fetchVisibleFlowIds calling: ${base} with host: ${hostBase}, page: ${page}`);
     try {
       const res = await http(cfg, base, {
         method: "POST",
         hostBase,
         includeHostHeader: true,
-        body: { hostname: hostBase, page }
+        body: {
+          hostname: hostBase,
+          page: page ?? null,
+          userId: userContextService.getAnalyticsContext().userId
+        }
       });
-      const flows = Array.isArray(res) ? res : [];
-      console.debug("[DAP] fetchVisibleFlowIds (POST) returned items count:", flows.length);
-      return flows;
+      return Array.isArray(res) ? res : [];
     } catch (e) {
       if (e && e.status === 405) {
-        const url = `${base}?hostname=${encodeURIComponent(hostBase)}&page=${encodeURIComponent(page || "")}`;
+        const url = `${base}?hostname=${encodeURIComponent(hostBase)}`;
         const res = await http(cfg, url, {
           method: "GET",
           hostBase,
           includeHostHeader: true
         });
-        const flows = Array.isArray(res?.flowIds) ? res.flowIds : Array.isArray(res) ? res : [];
-        console.debug("[DAP] fetchVisibleFlowIds (GET fallback) returned items count:", flows.length);
-        return flows;
+        return Array.isArray(res?.flowIds) ? res.flowIds : [];
       }
       throw e;
     }
   }
-  async function fetchFlowById(cfg, hostBase, flowId) {
-    const id = typeof flowId === "object" ? flowId.flowId || flowId.id : flowId;
-    if (!id) {
-      throw new Error(`Invalid flowId provided to fetchFlowById: ${JSON.stringify(flowId)}`);
-    }
-    const patterns = [
-      `/iap-experience/${cfg.organizationid}/${cfg.siteid}/flows/${id}`,
-      `/iap-experience/${cfg.organizationid}/${cfg.siteid}/flow/${id}`,
-      `/iap-experience/organizationId/${cfg.organizationid}/siteId/${cfg.siteid}/flows/${id}`,
-      `/iap-experience/organizationId/${cfg.organizationid}/siteCollectionId/${cfg.siteid}/flows/${id}`,
-      `/iap-experience/organizationId/${cfg.organizationid}/siteId/${cfg.siteid}/flow/${id}`,
-      `/iap-experience/organizationId/${cfg.organizationid}/siteCollectionId/${cfg.siteid}/flow/${id}`,
-      `/iap-experience/siteId/${cfg.siteid}/flows/${id}`,
-      `/iap-experience/siteCollectionId/${cfg.siteid}/flows/${id}`,
-      `/iap-experience/flows/${id}`,
-      `/iap-experience/flow/${id}`,
-      `/iap-experience/${cfg.siteid}/flows/${id}`,
-      `/iap-experience/${cfg.siteid}/flow/${id}`,
-      `/flows/${id}`,
-      `/flow/${id}`
-    ];
-    console.debug(`[DAP] Fetching flow by ID: ${id}. Trying ${patterns.length} patterns...`);
-    for (const pattern of patterns) {
-      const url = joinUrl(cfg.apiurl, pattern);
-      const urlWithHost = `${url}${url.includes("?") ? "&" : "?"}hostname=${encodeURIComponent(hostBase)}`;
-      try {
-        console.debug(`[DAP] Trying pattern (GET): ${urlWithHost}`);
-        const result = await http(cfg, urlWithHost, { method: "GET", hostBase, includeHostHeader: true });
-        console.debug(`[DAP] Successfully fetched flow via GET from: ${urlWithHost}`);
-        return result;
-      } catch (e) {
-        if (e && (e.status === 404 || e.status === 400)) {
-          console.debug(`[DAP] GET failed with ${e.status}: ${urlWithHost}`, e.body || "");
-          if (pattern.includes(cfg.organizationid) && pattern.includes(cfg.siteid)) {
-            try {
-              console.debug(`[DAP] Trying pattern (POST): ${url}`);
-              const result = await http(cfg, url, {
-                method: "POST",
-                hostBase,
-                includeHostHeader: true,
-                body: { hostname: hostBase }
-              });
-              console.debug(`[DAP] Successfully fetched flow via POST from: ${url}`);
-              return result;
-            } catch (postErr) {
-              console.debug(`[DAP] POST failed with ${postErr.status}: ${url}`, postErr.body || "");
-            }
-          }
-          continue;
-        }
-        if (e && e.status === 405) {
-          try {
-            console.debug(`[DAP] Trying pattern (POST fallback): ${url}`);
-            const result = await http(cfg, url, {
-              method: "POST",
-              hostBase,
-              includeHostHeader: true,
-              body: { hostname: hostBase }
-            });
-            console.debug(`[DAP] Successfully fetched flow via POST from: ${url}`);
-            return result;
-          } catch (postErr) {
-          }
-        }
-        throw e;
-      }
-    }
-    const queryUrl = joinUrl(cfg.apiurl, `/flows/${id}?organizationId=${cfg.organizationid}&siteId=${cfg.siteid}`);
-    try {
-      console.debug(`[DAP] Trying final fallback with query params: ${queryUrl}`);
-      return await http(cfg, queryUrl, { method: "GET", hostBase, includeHostHeader: true });
-    } catch (e) {
-    }
-    throw new Error(`Flow ${id} not found after trying all patterns. Patterns attempted: ${patterns.length} GET/POST variations.`);
-  }
-  function normalizeServerFlow(serverFlow) {
-    console.debug("[DAP] === NORMALIZING SERVER FLOW ===");
-    console.debug("[DAP] Raw server flow data:", serverFlow);
-    console.debug("[DAP] Flow ID:", serverFlow?.flowId);
-    console.debug("[DAP] Flow Name:", serverFlow?.flowName);
-    console.debug("[DAP] Steps count:", serverFlow?.steps?.length);
-    const firstStep = serverFlow?.steps?.[0];
-    if (firstStep?.uxExperience) {
-      const ux = firstStep.uxExperience;
-      ux.elementSelector;
-      ux.elementTrigger;
-      ux.elementLocation;
-    }
-    const out = { steps: [], startAt: 0 };
-    const steps = Array.isArray(serverFlow?.steps) ? serverFlow.steps : [];
-    console.debug(`[DAP] Processing flow with ${steps.length} steps`);
-    for (const step of steps) {
-      console.debug(`[DAP] Processing step:`, {
-        stepId: step?.stepId,
-        stepName: step?.stepName,
-        hasUxExperience: !!step?.uxExperience,
-        hasConditionRuleBlocks: !!(step?.conditionRuleBlocks && step.conditionRuleBlocks.length > 0),
-        conditionRuleBlocksLength: step?.conditionRuleBlocks?.length || 0
-      });
-      if (step?.conditionRuleBlocks && Array.isArray(step.conditionRuleBlocks) && step.conditionRuleBlocks.length > 0) {
-        console.debug(`[DAP] Processing rule step:`, step);
-        const stepId = normalizeStepId(step.stepId, "step", out.steps.length + 1);
-        const inputSelector = step.userInputSelector || step.conditionRuleBlocks[0]?.selector || "";
-        console.debug(`[DAP] Rule step input selector: ${inputSelector}`);
-        console.debug(`[DAP] Rule step has ${step.conditionRuleBlocks.length} rule blocks`);
-        if (!inputSelector) {
-          console.warn(`[DAP] Rule step ${step.stepId} has no input selector, skipping`);
-          continue;
-        }
-        const ruleStep = {
-          kind: "rule",
-          stepId,
-          inputSelector,
-          rules: step.conditionRuleBlocks
-        };
-        console.debug(`[DAP] Created rule step:`, ruleStep);
-        out.steps.push({
-          kind: "rule",
-          rule: ruleStep,
-          stepId
-        });
-        console.debug(`[DAP] Added rule step to modal sequence. Total steps: ${out.steps.length}`);
-        continue;
-      }
-      const ux = step?.uxExperience;
-      if (!ux) {
-        console.debug(`[DAP] Skipping step ${step?.stepId} - no uxExperience and no conditionRuleBlocks`);
-        continue;
-      }
-      const uxType = String(ux.uxExperienceType || "").toLowerCase();
-      if (uxType === "tooltip" || ux?.content?.componentType === "Tooltip") {
-        const stepId = normalizeStepId(step.stepId, "step", out.steps.length + 1);
-        const t = {
-          targetSelector: ux.elementSelector || "",
-          text: ux?.content?.text || "",
-          placement: normalizePlacement(ux?.content?.placement),
-          trigger: normalizeTriggerToLegacyFormat(ux.elementTrigger),
-          stepId
-        };
-        out.steps.push({
-          kind: "tooltip",
-          tooltip: t,
-          title: ux?.name || "Tip",
-          stepId,
-          // Preserve trigger information at step level
-          elementSelector: ux.elementSelector,
-          elementTrigger: ux.elementTrigger,
-          elementLocation: ux.elementLocation
-        });
-        continue;
-      }
-      if (uxType === "popover" || ux?.content?.componentType === "Popover") {
-        const stepId = normalizeStepId(step.stepId, "step", out.steps.length + 1);
-        const p = {
-          title: ux?.content?.title || ux?.name || "Info",
-          body: ux?.content?.body || "",
-          bodyBlocks: Array.isArray(ux?.content?.bodyBlocks) ? ux.content.bodyBlocks : void 0,
-          targetSelector: ux?.elementSelector || "",
-          placement: normalizePlacement(ux?.content?.placement),
-          trigger: normalizeTriggerToLegacyFormat(ux.elementTrigger),
-          showArrow: ux?.content?.showArrow !== false,
-          stepId
-        };
-        out.steps.push({
-          kind: "popover",
-          popover: p,
-          title: p.title,
-          stepId,
-          // Preserve trigger information at step level
-          elementSelector: ux.elementSelector,
-          elementTrigger: ux.elementTrigger,
-          elementLocation: ux.elementLocation
-        });
-        continue;
-      }
-      if (uxType === "modal" || ux?.content?.componentType === "Modal") {
-        const blocks = [];
-        console.debug("[DAP] Processing modal content for step:", step.stepName);
-        console.debug("[DAP] ux.content:", ux?.content);
-        console.debug("[DAP] ux.modalContent:", ux?.modalContent);
-        const contentType = String(ux?.modalContent?.contentType || "").toLowerCase();
-        const isKnowledgeBase = contentType === "knowledgebase";
-        console.log("[DAP] Processing Knowledge Base content:", isKnowledgeBase);
-        console.debug("[DAP] Is Knowledge Base modal:", isKnowledgeBase);
-        console.debug("[DAP] modalContent.contentType:", ux?.modalContent?.contentType);
-        console.debug("[DAP] modalContent full object:", ux?.modalContent);
-        console.log("[DAP] ux.content.body:", ux?.content?.body);
-        if (ux?.content?.body && !isKnowledgeBase) {
-          console.debug("[DAP] Adding text block with body:", typeof ux.content.body, ux.content.body);
-          if (Array.isArray(ux.content.body)) {
-            console.warn("[DAP] Body content is an array, likely KB items incorrectly assigned to body:", ux.content.body);
-            const kbItems = toKbItems(ux.content.body);
-            console.debug("[DAP] Creating KB block from body array:", kbItems);
-            const kb = {
-              kind: "kb",
-              title: ux?.content?.header || ux?.name || "Knowledge Base",
-              items: kbItems
-            };
-            blocks.push(kb);
-            console.debug("[DAP] Added KB block from body array:", kb);
-          } else {
-            blocks.push({ kind: "text", html: String(ux.content.body) });
-          }
-        } else if (ux?.content?.body && isKnowledgeBase) {
-          console.debug("[DAP] Skipping body text for Knowledge Base modal, body content:", ux.content.body);
-        }
-        if (contentType === "knowledgebase") {
-          console.debug("[DAP] Processing Knowledge Base content:", ux?.modalContent);
-          const kbItems = toKbItems(ux?.modalContent?.contentData);
-          console.debug("[DAP] Generated KB items:", kbItems);
-          const kb = {
-            kind: "kb",
-            title: ux?.content?.header || ux?.name || "Knowledge Base",
-            items: kbItems
-          };
-          blocks.push(kb);
-          console.debug("[DAP] Added KB block:", kb);
-        } else {
-          const c = ux?.modalContent;
-          if (c) {
-            const url = c.presignedUrl || c.contentData || "";
-            const ctype = String(c.contentType || "").toLowerCase();
-            if (ctype === "link") {
-              if (isYouTube(url)) {
-                blocks.push({ kind: "youtube", href: url, title: c.contentName || "YouTube" });
-              } else if (isHttp(url)) {
-                blocks.push({ kind: "link", href: url, label: c.contentName || url });
-              }
-            } else if (ctype === "video") {
-              if (isHttp(url)) blocks.push({ kind: "video", sources: [{ src: url }] });
-            } else if (ctype === "image") {
-              if (isHttp(url)) blocks.push({ kind: "image", url, alt: c.contentName || "" });
-            } else if (ctype === "article") {
-              if (isHttp(url)) {
-                blocks.push({
-                  kind: "article",
-                  url,
-                  fileName: c.contentData || void 0,
-                  mime: /\.pdf(\?|#|$)/i.test(url) ? "application/pdf" : /\.docx(\?|#|$)/i.test(url) ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : void 0
-                });
-              }
-            }
-          }
-        }
-        console.debug("[DAP] Final blocks array for modal:", blocks);
-        console.debug("[DAP] Block kinds:", blocks.map((b) => b.kind));
-        const stepId = normalizeStepId(step.stepId, "step", out.steps.length + 1);
-        out.steps.push({
-          kind: "modal",
-          title: ux?.content?.header || ux?.name || "Info",
-          footerText: ux?.content?.footer || "",
-          body: blocks,
-          stepId,
-          // Preserve trigger information at step level
-          elementSelector: ux.elementSelector,
-          elementTrigger: ux.elementTrigger,
-          elementLocation: ux.elementLocation
-        });
-        continue;
-      }
-      if (uxType === "survey" || ux?.content?.componentType === "MicroSurvey") {
-        const stepId = normalizeStepId(step.stepId, "step", out.steps.length + 1);
-        const survey = {
-          header: ux?.content?.header || ux?.name || "Survey",
-          body: ux?.content?.body || "",
-          questions: Array.isArray(ux?.content?.questions) ? ux.content.questions.map((q) => ({
-            questionId: q.questionId || `q${Math.random().toString(36).substring(2, 10)}`,
-            question: q.question || "",
-            type: q.type || "SingleChoice",
-            options: Array.isArray(q.options) ? q.options : void 0,
-            scaleMin: q.scaleMin !== void 0 ? q.scaleMin : void 0,
-            scaleMax: q.scaleMax !== void 0 ? q.scaleMax : void 0,
-            labelMin: q.labelMin || void 0,
-            labelMax: q.labelMax || void 0,
-            criteria: Array.isArray(q.criteria) ? q.criteria : void 0
-          })) : [],
-          flowId: serverFlow.flowId,
-          organizationId: serverFlow.organizationId,
-          siteId: serverFlow.siteId,
-          stepId
-        };
-        out.steps.push({
-          kind: "survey",
-          survey,
-          title: survey.header || "Survey",
-          stepId,
-          // Preserve trigger information at step level
-          elementSelector: ux.elementSelector,
-          elementTrigger: ux.elementTrigger,
-          elementLocation: ux.elementLocation
-        });
-        continue;
-      }
-    }
-    out.steps.forEach((step) => {
-      if (step.stepId) {
-        step.stepId = normalizeStepId(step.stepId);
-        if (step.tooltip && step.tooltip.stepId) {
-          step.tooltip.stepId = step.stepId;
-        } else if (step.popover && step.popover.stepId) {
-          step.popover.stepId = step.stepId;
-        } else if (step.survey && step.survey.stepId) {
-          step.survey.stepId = step.stepId;
-        }
-      }
-    });
-    if (out.steps.length > 0) {
-      out.stepsCount = out.steps.length;
-    }
-    console.debug("[DAP] === NORMALIZATION COMPLETE ===");
-    console.debug("[DAP] Total steps created:", out.steps.length);
-    console.debug("[DAP] Final modal sequence payload:", out);
-    out.steps.forEach((step, index) => {
-      console.debug(`[DAP] Step ${index + 1}:`, {
-        kind: step.kind,
-        stepId: step.stepId,
-        hasRule: step.kind === "rule",
-        ruleData: step.kind === "rule" ? step.rule : void 0
-      });
-    });
-    console.debug("[DAP] === END NORMALIZATION ===");
-    return out;
-  }
-  function isHttp(url) {
-    try {
-      const u = new URL(url, location.origin);
-      return /^https?:$/i.test(u.protocol);
-    } catch {
-      return false;
-    }
-  }
-  function isYouTube(url) {
-    try {
-      const u = new URL(url, location.origin);
-      const h = u.hostname.toLowerCase();
-      return /(^|\.)youtube\.com$/.test(h) || /(^|\.)youtu\.be$/.test(h) || /(^|\.)youtube-nocookie\.com$/.test(h);
-    } catch {
-      return false;
-    }
-  }
-  function mapItemType(t, url) {
-    const v = (t || "").toLowerCase();
-    if (v === "link") return isYouTube(url) ? "youtube" : "link";
-    if (v === "video") return "video";
-    if (v === "image") return "image";
-    if (v === "article") return "article";
-    return "link";
-  }
-  function toKbItems(arr) {
-    console.debug("[DAP] toKbItems input:", arr);
-    if (!Array.isArray(arr)) return [];
-    const items = [];
-    for (const it of arr) {
-      const url = it?.presignedUrl || "";
-      const title = it?.contentName || "";
-      const description = it?.contentDescription || "";
-      const contentType = it?.contentType || "";
-      const fileName = it?.contentData || "";
-      console.debug("[DAP] Processing KB item:", {
-        raw: it,
-        extracted: { url, title, description, contentType, fileName }
-      });
-      if (!url || !title) {
-        console.warn("[DAP] KB item missing required fields (url or title), skipping:", it);
-        continue;
-      }
-      const kbItem = {
-        kind: "kb-item",
-        itemType: mapItemType(contentType, url),
-        title,
-        description,
-        url,
-        fileName: fileName || void 0,
-        mime: /\.pdf(\?|#|$)/i.test(url) ? "application/pdf" : /\.docx(\?|#|$)/i.test(url) ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : void 0
-      };
-      console.debug("[DAP] Generated KB item:", kbItem);
-      items.push(kbItem);
-    }
-    console.debug("[DAP] Final KB items array:", items);
-    return items;
+  async function fetchFlowById(cfg, hostBase, flowId, previewSessionId) {
+    const baseUrl = joinUrl(cfg.apiurl, `/iap-experience/${cfg.organizationid}/${cfg.siteid}/flows/${flowId}`);
+    const url = previewSessionId ? `${baseUrl}?previewSessionId=${encodeURIComponent(previewSessionId)}` : baseUrl;
+    return http(cfg, url, { method: "GET", hostBase, includeHostHeader: true });
   }
   function joinUrl(base, tail) {
     const b = (base || "").replace(/\/+$/, "");
@@ -697,10 +410,8 @@ var DAP = (function (exports) {
   }
   var init_flows = __esm({
     "src/flows.ts"() {
-      init_normalize();
-      init_triggerNormalizer();
-      init_idGenerator();
       init_http();
+      init_userContextService();
     }
   });
 
@@ -727,757 +438,107 @@ var DAP = (function (exports) {
     }
   });
 
-  // src/experiences/tooltip.ts
-  var tooltip_exports = {};
-  __export(tooltip_exports, {
-    registerTooltip: () => registerTooltip,
-    renderDirectTooltip: () => renderDirectTooltip,
-    renderTooltip: () => renderTooltip
-  });
-  function registerTooltip() {
-    register("tooltip", renderTooltip);
-  }
-  async function renderTooltip(flow) {
-    const { payload, id } = flow;
-    console.debug("[DAP] Tooltip initialized", { id, selector: payload.targetSelector });
-    if (!payload.targetSelector || !payload.text) {
-      console.error("[DAP] Tooltip missing required fields", {
-        targetSelector: payload.targetSelector,
-        hasText: !!payload.text
-      });
-      return;
-    }
-    const target = await waitForTarget(payload.targetSelector, 5e3);
-    if (!target) {
-      console.warn("[DAP] Tooltip target not found", { selector: payload.targetSelector });
-      return;
-    }
-    console.debug("[DAP] Tooltip target resolved", { selector: payload.targetSelector });
-    const tooltip = new DAPTooltip(id, target, payload);
-    tooltip.initialize();
-  }
-  async function renderDirectTooltip(payload) {
-    const directFlow = {
-      id: `validation-${Date.now()}`,
-      payload
-    };
-    await renderTooltip(directFlow);
-  }
-  async function waitForTarget(selector, timeout) {
-    const startTime = Date.now();
-    let element = resolveSelector(selector);
-    if (element) return element;
-    return new Promise((resolve) => {
-      const observer = new MutationObserver(() => {
-        element = resolveSelector(selector);
-        if (element) {
-          observer.disconnect();
-          resolve(element);
-          return;
-        }
-        if (Date.now() - startTime > timeout) {
-          observer.disconnect();
-          resolve(null);
-        }
-      });
-      observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-        attributes: true
-      });
-      setTimeout(() => {
-        observer.disconnect();
-        resolve(resolveSelector(selector));
-      }, timeout);
-    });
-  }
-  var DAPTooltip;
-  var init_tooltip = __esm({
-    "src/experiences/tooltip.ts"() {
-      init_registry();
-      init_selectors();
-      DAPTooltip = class {
-        constructor(id, target, payload) {
-          this.container = null;
-          this.overlay = null;
-          this.isVisible = false;
-          this.listeners = [];
-          this.targetObserver = null;
-          this.id = id;
-          this.target = target;
-          this.payload = payload;
-          this.trigger = this.normalizeTrigger(payload.trigger);
-        }
-        initialize() {
-          this.setupTrigger();
-          this.setupGlobalListeners();
-          this.setupTargetObserver();
-          if (this.trigger === "hover" || this.trigger === "focus") {
-            this.show();
-          }
-        }
-        normalizeTrigger(trigger) {
-          if (typeof trigger === "string" && ["hover", "click", "focus", "pageload"].includes(trigger)) {
-            return trigger;
-          }
-          return "hover";
-        }
-        setupTrigger() {
-          switch (this.trigger) {
-            case "hover":
-              this.setupHoverTrigger();
-              break;
-            case "click":
-              this.setupClickTrigger();
-              break;
-            case "focus":
-              this.setupFocusTrigger();
-              break;
-            case "pageload":
-              this.show();
-              break;
-          }
-        }
-        setupHoverTrigger() {
-          const onMouseEnter = () => this.show();
-          const onMouseLeave = (e) => {
-            const related = e.relatedTarget;
-            if (related && this.container?.contains(related)) return;
-            this.hide();
-          };
-          this.target.addEventListener("mouseenter", onMouseEnter);
-          this.target.addEventListener("mouseleave", onMouseLeave);
-          this.listeners.push(
-            () => this.target.removeEventListener("mouseenter", onMouseEnter),
-            () => this.target.removeEventListener("mouseleave", onMouseLeave)
-          );
-        }
-        setupClickTrigger() {
-          const onClick = (e) => {
-            e.stopPropagation();
-            if (this.isVisible) {
-              this.hide();
-            } else {
-              this.show();
-            }
-          };
-          const onDocumentClick = (e) => {
-            const target = e.target;
-            if (!this.container?.contains(target) && !this.target.contains(target)) {
-              this.hide();
-            }
-          };
-          this.target.addEventListener("click", onClick);
-          document.addEventListener("click", onDocumentClick, true);
-          this.listeners.push(
-            () => this.target.removeEventListener("click", onClick),
-            () => document.removeEventListener("click", onDocumentClick, true)
-          );
-        }
-        setupFocusTrigger() {
-          const onFocus = () => this.show();
-          const onBlur = () => this.hide();
-          this.target.addEventListener("focus", onFocus);
-          this.target.addEventListener("blur", onBlur);
-          this.listeners.push(
-            () => this.target.removeEventListener("focus", onFocus),
-            () => this.target.removeEventListener("blur", onBlur)
-          );
-        }
-        setupGlobalListeners() {
-          const onKeyDown = (e) => {
-            if (e.key === "Escape" && this.isVisible) {
-              this.hide();
-            }
-          };
-          const onScroll = () => {
-            if (this.isVisible) {
-              if (!this.isTargetInViewport()) {
-                this.hide();
-              } else {
-                this.position();
-              }
-            }
-          };
-          const onResize = () => {
-            if (this.isVisible) {
-              this.position();
-            }
-          };
-          const onVisibilityChange = () => {
-            if (document.hidden && this.isVisible) {
-              this.hide();
-            }
-          };
-          document.addEventListener("keydown", onKeyDown);
-          window.addEventListener("scroll", onScroll, true);
-          window.addEventListener("resize", onResize);
-          document.addEventListener("visibilitychange", onVisibilityChange);
-          this.listeners.push(
-            () => document.removeEventListener("keydown", onKeyDown),
-            () => window.removeEventListener("scroll", onScroll, true),
-            () => window.removeEventListener("resize", onResize),
-            () => document.removeEventListener("visibilitychange", onVisibilityChange)
-          );
-        }
-        setupTargetObserver() {
-          this.targetObserver = new MutationObserver(() => {
-            if (!document.contains(this.target)) {
-              this.destroy();
-            }
-          });
-          this.targetObserver.observe(document.documentElement, {
-            childList: true,
-            subtree: true
-          });
-        }
-        show() {
-          if (this.isVisible) return;
-          console.debug("[DAP] Tooltip shown", { id: this.id });
-          this.createTooltip();
-          this.position();
-          this.isVisible = true;
-          requestAnimationFrame(() => {
-            if (this.container) {
-              this.container.classList.add("dap-tooltip-visible");
-            }
-          });
-          if (this.payload._completionTracker?.onComplete) {
-            console.debug("[DAP] Completing tooltip flow", { id: this.id });
-            this.payload._completionTracker.onComplete();
-          }
-        }
-        hide() {
-          if (!this.isVisible) return;
-          console.debug("[DAP] Tooltip dismissed", { id: this.id });
-          if (this.container) {
-            this.container.style.animation = "dap-tooltip-exit 0.2s cubic-bezier(0.4, 0.0, 0.2, 1) forwards";
-            setTimeout(() => {
-              this.removeTooltip();
-            }, 200);
-          } else {
-            this.removeTooltip();
-          }
-          this.isVisible = false;
-        }
-        createTooltip() {
-          this.overlay = this.getOrCreateOverlay();
-          this.container = document.createElement("div");
-          this.container.className = "dap-tooltip";
-          this.container.id = `dap-tooltip-${this.id}`;
-          this.container.setAttribute("role", "tooltip");
-          this.container.setAttribute("aria-live", "polite");
-          const content = document.createElement("div");
-          content.className = "dap-tooltip-content";
-          content.textContent = this.payload.text || "";
-          const arrow = document.createElement("div");
-          arrow.className = "dap-tooltip-arrow";
-          this.container.appendChild(content);
-          this.container.appendChild(arrow);
-          if (this.trigger === "hover") {
-            const onTooltipMouseLeave = () => this.hide();
-            this.container.addEventListener("mouseleave", onTooltipMouseLeave);
-            this.listeners.push(
-              () => this.container?.removeEventListener("mouseleave", onTooltipMouseLeave)
-            );
-          }
-          this.overlay.appendChild(this.container);
-          const tooltipId = this.container.id;
-          const prevDesc = this.target.getAttribute("aria-describedby") || "";
-          this.target.setAttribute("aria-describedby", [prevDesc, tooltipId].filter(Boolean).join(" ").trim());
-        }
-        removeTooltip() {
-          if (this.container) {
-            const tooltipId = this.container.id;
-            const currentDesc = this.target.getAttribute("aria-describedby") || "";
-            const newDesc = currentDesc.split(/\s+/).filter(Boolean).filter((id) => id !== tooltipId).join(" ");
-            if (newDesc) {
-              this.target.setAttribute("aria-describedby", newDesc);
-            } else {
-              this.target.removeAttribute("aria-describedby");
-            }
-            this.container.remove();
-            this.container = null;
-          }
-        }
-        position() {
-          if (!this.container) return;
-          const targetRect = this.target.getBoundingClientRect();
-          const placement = this.normalizePlacement(this.payload.placement);
-          this.container.style.position = "fixed";
-          this.container.style.visibility = "hidden";
-          this.container.style.top = "0px";
-          this.container.style.left = "0px";
-          this.container.style.display = "block";
-          const tooltipRect = this.container.getBoundingClientRect();
-          const gap = 8;
-          const viewport = {
-            width: window.innerWidth,
-            height: window.innerHeight
-          };
-          const position = this.calculatePosition(targetRect, tooltipRect, placement, gap, viewport);
-          this.container.style.top = `${position.top}px`;
-          this.container.style.left = `${position.left}px`;
-          this.container.setAttribute("data-placement", position.placement);
-          this.container.style.visibility = "visible";
-        }
-        normalizePlacement(placement) {
-          if (typeof placement === "string" && ["top", "right", "bottom", "left"].includes(placement)) {
-            return placement;
-          }
-          return "top";
-        }
-        calculatePosition(targetRect, tooltipRect, preferredPlacement, gap, viewport) {
-          const positions = {
-            top: {
-              top: targetRect.top - tooltipRect.height - gap,
-              left: targetRect.left + (targetRect.width - tooltipRect.width) / 2
-            },
-            right: {
-              top: targetRect.top + (targetRect.height - tooltipRect.height) / 2,
-              left: targetRect.right + gap
-            },
-            bottom: {
-              top: targetRect.bottom + gap,
-              left: targetRect.left + (targetRect.width - tooltipRect.width) / 2
-            },
-            left: {
-              top: targetRect.top + (targetRect.height - tooltipRect.height) / 2,
-              left: targetRect.left - tooltipRect.width - gap
-            }
-          };
-          const fits = (pos) => {
-            return pos.top >= 0 && pos.left >= 0 && pos.top + tooltipRect.height <= viewport.height && pos.left + tooltipRect.width <= viewport.width;
-          };
-          let finalPosition = positions[preferredPlacement];
-          let finalPlacement = preferredPlacement;
-          if (!fits(finalPosition)) {
-            const alternatives = ["top", "right", "bottom", "left"];
-            for (const alt of alternatives) {
-              if (alt !== preferredPlacement) {
-                const altPos = positions[alt];
-                if (fits(altPos)) {
-                  finalPosition = altPos;
-                  finalPlacement = alt;
-                  break;
-                }
-              }
-            }
-          }
-          const margin = 4;
-          finalPosition.top = Math.max(margin, Math.min(finalPosition.top, viewport.height - tooltipRect.height - margin));
-          finalPosition.left = Math.max(margin, Math.min(finalPosition.left, viewport.width - tooltipRect.width - margin));
-          return { ...finalPosition, placement: finalPlacement };
-        }
-        isTargetInViewport() {
-          const rect = this.target.getBoundingClientRect();
-          return rect.top >= 0 && rect.left >= 0 && rect.bottom <= window.innerHeight && rect.right <= window.innerWidth;
-        }
-        getOrCreateOverlay() {
-          let overlay = document.getElementById("dap-tooltip-overlay");
-          if (!overlay) {
-            overlay = document.createElement("div");
-            overlay.id = "dap-tooltip-overlay";
-            overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        pointer-events: none;
-        z-index: 2147483640;
-      `;
-            this.injectCSS();
-            document.body.appendChild(overlay);
-          }
-          return overlay;
-        }
-        injectCSS() {
-          if (document.getElementById("dap-tooltip-styles")) return;
-          const style = document.createElement("style");
-          style.id = "dap-tooltip-styles";
-          style.textContent = `
-      .dap-tooltip {
-        position: fixed;
-        background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
-        color: #2c3e50;
-        padding: 12px 16px;
-        border-radius: 8px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        font-size: 14px;
-        font-weight: 400;
-        line-height: 1.5;
-        max-width: 320px;
-        min-width: 200px;
-        word-wrap: break-word;
-        z-index: 2147483641;
-        pointer-events: auto;
-        box-shadow: 
-          0 8px 32px rgba(0, 0, 0, 0.15),
-          0 4px 16px rgba(0, 0, 0, 0.08),
-          0 0 0 1px rgba(0, 0, 0, 0.05);
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        backdrop-filter: blur(8px);
-        opacity: 0;
-        transform: scale(0.95) translateY(-4px);
-        transition: all 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
-        animation: dap-tooltip-enter 0.25s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
-      }
-
-      .dap-tooltip.dap-tooltip-visible {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-      }
-
-      .dap-tooltip-content {
-        margin: 0;
-        color: #2c3e50;
-        text-shadow: none;
-        letter-spacing: 0.02em;
-      }
-
-      .dap-tooltip-content p {
-        margin: 0;
-      }
-
-      .dap-tooltip-content strong {
-        font-weight: 600;
-        color: #1a202c;
-      }
-
-      .dap-tooltip-arrow {
-        position: absolute;
-        width: 0;
-        height: 0;
-        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.08));
-      }
-
-      /* Arrow positioning and styling */
-      .dap-tooltip[data-placement="top"] .dap-tooltip-arrow {
-        bottom: -8px;
-        left: 50%;
-        transform: translateX(-50%);
-        border-left: 8px solid transparent;
-        border-right: 8px solid transparent;
-        border-top: 8px solid #f8f9fa;
-      }
-
-      .dap-tooltip[data-placement="right"] .dap-tooltip-arrow {
-        left: -8px;
-        top: 50%;
-        transform: translateY(-50%);
-        border-top: 8px solid transparent;
-        border-bottom: 8px solid transparent;
-        border-right: 8px solid #f8f9fa;
-      }
-
-      .dap-tooltip[data-placement="bottom"] .dap-tooltip-arrow {
-        top: -8px;
-        left: 50%;
-        transform: translateX(-50%);
-        border-left: 8px solid transparent;
-        border-right: 8px solid transparent;
-        border-bottom: 8px solid #f8f9fa;
-      }
-
-      .dap-tooltip[data-placement="left"] .dap-tooltip-arrow {
-        right: -8px;
-        top: 50%;
-        transform: translateY(-50%);
-        border-top: 8px solid transparent;
-        border-bottom: 8px solid transparent;
-        border-left: 8px solid #f8f9fa;
-      }
-
-      /* Animation keyframes */
-      @keyframes dap-tooltip-enter {
-        0% {
-          opacity: 0;
-          transform: scale(0.9) translateY(-8px);
-        }
-        50% {
-          opacity: 0.8;
-        }
-        100% {
-          opacity: 1;
-          transform: scale(1) translateY(0);
-        }
-      }
-
-      @keyframes dap-tooltip-exit {
-        0% {
-          opacity: 1;
-          transform: scale(1) translateY(0);
-        }
-        100% {
-          opacity: 0;
-          transform: scale(0.95) translateY(-4px);
-        }
-      }
-
-      /* Hover states */
-      .dap-tooltip:hover {
-        background: linear-gradient(135deg, #ffffff 0%, #f1f3f5 100%);
-        box-shadow: 
-          0 12px 40px rgba(0, 0, 0, 0.18),
-          0 6px 20px rgba(0, 0, 0, 0.1),
-          0 0 0 1px rgba(0, 0, 0, 0.08);
-        transform: translateY(-1px);
-      }
-
-      /* High contrast mode support */
-      @media (prefers-contrast: high) {
-        .dap-tooltip {
-          background: #ffffff;
-          border: 2px solid #000000;
-          color: #000000;
-        }
-        
-        .dap-tooltip-arrow {
-          filter: none;
-        }
-        
-        .dap-tooltip[data-placement="top"] .dap-tooltip-arrow {
-          border-top-color: #ffffff;
-        }
-        
-        .dap-tooltip[data-placement="right"] .dap-tooltip-arrow {
-          border-right-color: #ffffff;
-        }
-        
-        .dap-tooltip[data-placement="bottom"] .dap-tooltip-arrow {
-          border-bottom-color: #ffffff;
-        }
-        
-        .dap-tooltip[data-placement="left"] .dap-tooltip-arrow {
-          border-left-color: #ffffff;
-        }
-      }
-
-      /* Reduced motion support */
-      @media (prefers-reduced-motion: reduce) {
-        .dap-tooltip {
-          transition: opacity 0.15s ease;
-          animation: none;
-        }
-        
-        .dap-tooltip:hover {
-          transform: none;
-        }
-      }
-
-      /* Dark mode support */
-      @media (prefers-color-scheme: dark) {
-        .dap-tooltip {
-          background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
-          color: #ffffff;
-          border-color: rgba(255, 255, 255, 0.1);
-          box-shadow: 
-            0 8px 32px rgba(0, 0, 0, 0.4),
-            0 4px 16px rgba(0, 0, 0, 0.24),
-            0 0 0 1px rgba(255, 255, 255, 0.1);
-        }
-        
-        .dap-tooltip-content {
-          color: #ffffff;
-        }
-        
-        .dap-tooltip-content strong {
-          color: #e2e8f0;
-        }
-        
-        .dap-tooltip[data-placement="top"] .dap-tooltip-arrow {
-          border-top-color: #2d3748;
-        }
-        
-        .dap-tooltip[data-placement="right"] .dap-tooltip-arrow {
-          border-right-color: #2d3748;
-        }
-        
-        .dap-tooltip[data-placement="bottom"] .dap-tooltip-arrow {
-          border-bottom-color: #2d3748;
-        }
-        
-        .dap-tooltip[data-placement="left"] .dap-tooltip-arrow {
-          border-left-color: #2d3748;
-        }
-      }
-
-      /* Focus indicators for accessibility */
-      .dap-tooltip:focus-within {
-        outline: 2px solid #4a90e2;
-        outline-offset: 2px;
-      }
-
-      /* RTL support */
-      [dir="rtl"] .dap-tooltip {
-        text-align: right;
-      }
-
-      /* Mobile responsive adjustments */
-      @media (max-width: 768px) {
-        .dap-tooltip {
-          max-width: calc(100vw - 32px);
-          font-size: 16px;
-          padding: 16px 20px;
-        }
-      }
-
-      @media (max-width: 480px) {
-        .dap-tooltip {
-          max-width: calc(100vw - 16px);
-          border-radius: 12px;
-        }
-      }
-    `;
-          document.head.appendChild(style);
-        }
-        destroy() {
-          console.debug("[DAP] Tooltip destroyed", { id: this.id });
-          this.hide();
-          this.listeners.forEach((cleanup) => cleanup());
-          this.listeners = [];
-          if (this.targetObserver) {
-            this.targetObserver.disconnect();
-            this.targetObserver = null;
-          }
-        }
-      };
-    }
-  });
-
   // src/utils/immediateValidationPrevention.ts
-  (function immediateValidationPrevention() {
-    console.debug("[DAP] Immediate validation prevention activated");
-    if (typeof HTMLFormElement !== "undefined") {
-      HTMLFormElement.prototype.checkValidity = function() {
-        console.debug("[DAP] Form.checkValidity() intercepted");
-        return true;
-      };
-      HTMLFormElement.prototype.reportValidity = function() {
-        console.debug("[DAP] Form.reportValidity() intercepted");
-        return true;
-      };
-    }
-    if (typeof HTMLInputElement !== "undefined") {
-      HTMLInputElement.prototype.checkValidity = function() {
-        console.debug("[DAP] Input.checkValidity() intercepted");
-        return true;
-      };
-      HTMLInputElement.prototype.reportValidity = function() {
-        console.debug("[DAP] Input.reportValidity() intercepted");
-        return true;
-      };
-    }
-    let lastPreventedTarget = null;
-    let lastPreventedTime = 0;
-    const preventValidation = (event) => {
-      const now = Date.now();
-      if (event.target === lastPreventedTarget && now - lastPreventedTime < 100) {
-        return false;
+  var DAP_FORM_CLASSES = [
+    "dap-survey-form",
+    "dap-modal-form",
+    "dap-popover-form",
+    "dap-sequence-form"
+  ];
+  function isDapManagedElement(el) {
+    if (!el) return false;
+    const form = el.closest("form");
+    if (!form) return false;
+    return DAP_FORM_CLASSES.some((cls) => form.classList.contains(cls));
+  }
+  document.addEventListener(
+    "invalid",
+    (event) => {
+      if (isDapManagedElement(event.target)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const target = event.target;
+        if (typeof target.setCustomValidity === "function") {
+          target.setCustomValidity("");
+        }
+        console.debug("[DAP] Validation suppressed for DAP-managed input:", event.target);
       }
-      lastPreventedTarget = event.target;
-      lastPreventedTime = now;
-      console.debug("[DAP] Validation event prevented:", event.type, event.target);
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      const target = event.target;
-      if (target && typeof target.setCustomValidity === "function") {
-        target.setCustomValidity("");
-      }
-      return false;
-    };
-    document.addEventListener("invalid", preventValidation, { capture: true, passive: false });
-    document.addEventListener("submit", (event) => {
-      const form = event.target;
-      if (form && form.tagName === "FORM") {
-        form.setAttribute("novalidate", "");
-        form.noValidate = true;
-        console.debug("[DAP] Form novalidate applied during submit");
-      }
-    }, { capture: true });
+    },
+    { capture: true, passive: false }
+  );
+  function injectDapValidationStyles() {
+    if (document.getElementById("dap-validation-override")) return;
     const style = document.createElement("style");
     style.id = "dap-validation-override";
     style.textContent = `
-    /* Hide all browser validation UI */
-    input:invalid,
-    input:-webkit-any(invalid),
-    input:-moz-ui-invalid {
+    /* Suppress native validation ring only for DAP-managed inputs */
+    ${DAP_FORM_CLASSES.map((cls) => `.${cls} input:invalid`).join(",\n    ")} {
       box-shadow: none !important;
     }
-    
-    /* Hide validation pseudo-elements */
-    input::-webkit-validation-bubble,
-    input::-webkit-validation-bubble-message,
-    input::-webkit-validation-bubble-arrow,
-    input::-webkit-validation-bubble-arrow-clipper {
-      display: none !important;
-    }
-    
-    /* Firefox validation hiding */
-    input:-moz-ui-invalid {
-      box-shadow: none !important;
-    }
-    
-    /* Hide any tooltips or popups */
-    [role="tooltip"]:not(.dap-tooltip):not(.dap-tip-bubble) {
+
+    /* Hide webkit validation bubble inside DAP forms */
+    ${DAP_FORM_CLASSES.map(
+    (cls) => `.${cls} input::-webkit-validation-bubble,
+    .${cls} input::-webkit-validation-bubble-message,
+    .${cls} input::-webkit-validation-bubble-arrow`
+  ).join(",\n    ")} {
       display: none !important;
     }
   `;
     if (document.head) {
       document.head.appendChild(style);
     } else {
-      const observer = new MutationObserver(() => {
+      const obs = new MutationObserver(() => {
         if (document.head) {
           document.head.appendChild(style);
-          observer.disconnect();
+          obs.disconnect();
         }
       });
-      observer.observe(document.documentElement, { childList: true, subtree: true });
+      obs.observe(document.documentElement, { childList: true, subtree: true });
     }
-    const processExistingForms = () => {
-      const forms = document.querySelectorAll("form");
-      forms.forEach((form) => {
-        form.setAttribute("novalidate", "");
-        form.noValidate = true;
-        console.debug("[DAP] Existing form processed:", form);
-      });
+  }
+  injectDapValidationStyles();
+  function suppressValidationFor(form) {
+    form.setAttribute("novalidate", "");
+    form.noValidate = true;
+    console.debug("[DAP] Validation suppressed for form:", form.className);
+  }
+  function restoreValidationFor(form) {
+    form.removeAttribute("novalidate");
+    form.noValidate = false;
+    console.debug("[DAP] Validation restored for form:", form.className);
+  }
+
+  // src/config.ts
+  function normalizeConfig(j) {
+    if (!j) return {};
+    return {
+      organizationid: j.organizationid || j.organizationId || "",
+      siteid: j.siteid || j.siteId || j.siteCollectionId || "",
+      apikey: j.apikey || j.apiKey || "",
+      apiurl: j.apiurl || j.apiUrl || "",
+      enableDraggableModals: j.enableDraggableModals !== void 0 ? j.enableDraggableModals : j.enable_draggable_modals
     };
-    if (document.readyState !== "loading") {
-      processExistingForms();
-    } else {
-      document.addEventListener("DOMContentLoaded", processExistingForms);
+  }
+  function validateConfig(j) {
+    const normalized = normalizeConfig(j);
+    const fields = ["organizationid", "siteid", "apikey", "apiurl"];
+    for (const f of fields) {
+      const val = normalized[f];
+      if (typeof val !== "string" || val.trim() === "") {
+        throw new Error(`Config missing/invalid "${f}" (checked both lowercase and camelCase formats)`);
+      }
     }
-    const formObserver = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const element = node;
-            if (element.tagName === "FORM") {
-              const form = element;
-              form.setAttribute("novalidate", "");
-              form.noValidate = true;
-              console.debug("[DAP] New form processed:", form);
-            }
-            const forms = element.querySelectorAll?.("form");
-            forms?.forEach((form) => {
-              form.setAttribute("novalidate", "");
-              form.noValidate = true;
-              console.debug("[DAP] Nested form processed:", form);
-            });
-          }
-        });
-      });
-    });
-    if (document.body) {
-      formObserver.observe(document.body, { childList: true, subtree: true });
-    } else {
-      document.addEventListener("DOMContentLoaded", () => {
-        formObserver.observe(document.body, { childList: true, subtree: true });
-      });
-    }
-    console.debug("[DAP] Immediate validation prevention setup complete");
-  })();
+  }
+  async function loadConfig(url, { debug = false } = {}) {
+    const res = await fetch(url, { credentials: "omit" });
+    if (!res.ok) throw new Error("Config load failed: " + res.status);
+    const json = await res.json();
+    validateConfig(json);
+    const normalized = normalizeConfig(json);
+    if (debug) console.log("[DAP] config", { ...normalized, apikey: "\u2022\u2022\u2022redacted\u2022\u2022\u2022" });
+    return normalized;
+  }
 
   // src/index.ts
   init_flows();
@@ -1548,7 +609,14 @@ var DAP = (function (exports) {
     "tbody",
     "tr",
     "td",
-    "th"
+    "th",
+    "img",
+    "video",
+    "audio",
+    "source",
+    "iframe",
+    "figure",
+    "figcaption"
   ]);
   var ATTR_ALLOW = /* @__PURE__ */ new Set([
     "href",
@@ -1562,15 +630,26 @@ var DAP = (function (exports) {
     "aria-label",
     "colspan",
     "rowspan",
-    "scope"
+    "scope",
+    "controls",
+    "autoplay",
+    "loop",
+    "muted",
+    "width",
+    "height",
+    "frameborder",
+    "allowfullscreen",
+    "allow"
   ]);
   function isSafeHttpUrl(u) {
-    if (!u) return false;
+    if (!u || !u.trim()) return false;
+    const lower = u.trim().toLowerCase();
+    if (lower.startsWith("javascript:") || lower.startsWith("data:")) return false;
     try {
       const url = new URL(u, location.origin);
-      return url.protocol === "http:" || url.protocol === "https:";
+      return ["http:", "https:", "mailto:", "tel:", "file:"].includes(url.protocol) || url.protocol === location.protocol;
     } catch {
-      return false;
+      return !lower.startsWith("javascript:");
     }
   }
   function isHttpUrl(u) {
@@ -1584,7 +663,85 @@ var DAP = (function (exports) {
 
   // src/experiences/modalSequence.ts
   init_registry();
-  init_selectors();
+
+  // src/utils/selectors.ts
+  function resolveSelectorAll(selector, root = document) {
+    if (!selector || typeof selector !== "string") return [];
+    try {
+      const cssElements = root.querySelectorAll(selector);
+      if (cssElements.length > 0) return Array.from(cssElements);
+    } catch {
+    }
+    try {
+      const doc = root instanceof Document ? root : root.ownerDocument ?? document;
+      const result = doc.evaluate(
+        selector,
+        root,
+        null,
+        XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+        null
+      );
+      const elements = [];
+      for (let i = 0; i < result.snapshotLength; i++) {
+        const el = result.snapshotItem(i);
+        if (el) elements.push(el);
+      }
+      return elements;
+    } catch {
+      return [];
+    }
+  }
+  function resolveSelector(sel, root = document) {
+    if (!sel || typeof sel !== "string") return null;
+    try {
+      const cssEl = root.querySelector(sel);
+      if (cssEl) return cssEl;
+    } catch {
+    }
+    try {
+      const doc = root instanceof Document ? root : root.ownerDocument ?? document;
+      const result = doc.evaluate(
+        sel,
+        root,
+        null,
+        XPathResult.FIRST_ORDERED_NODE_TYPE,
+        null
+      );
+      return result.singleNodeValue ?? null;
+    } catch {
+      return null;
+    }
+  }
+  function waitForElement(selector, options = {}) {
+    const { timeout = 5e3, root = document } = options;
+    return new Promise((resolve, reject) => {
+      const existingElement = resolveSelector(selector, root);
+      if (existingElement) {
+        resolve(existingElement);
+        return;
+      }
+      let timeoutId;
+      let observer;
+      timeoutId = window.setTimeout(() => {
+        observer?.disconnect();
+        reject(new Error(`Element not found within timeout: ${selector}`));
+      }, timeout);
+      observer = new MutationObserver(() => {
+        const element = resolveSelector(selector, root);
+        if (element) {
+          clearTimeout(timeoutId);
+          observer.disconnect();
+          resolve(element);
+        }
+      });
+      observer.observe(root, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeOldValue: false
+      });
+    });
+  }
 
   // src/styles/modal.css.ts
   var modalCssText = `
@@ -1795,6 +952,25 @@ var DAP = (function (exports) {
 .dap-content-image img {
   max-width: 100% !important;
   height: auto !important;
+}
+
+.dap-content-link,
+.dap-modal-body a {
+  color: #3b82f6 !important;
+  text-decoration: underline !important;
+  font-weight: 500 !important;
+  transition: color 0.2s ease !important;
+}
+
+.dap-content-link:hover,
+.dap-modal-body a:hover {
+  color: #1e40af !important;
+  text-decoration: none !important;
+}
+
+.dap-content-link {
+  display: inline-block !important;
+  margin: 8px 0 !important;
 }
 
 /* Modal Button Styles with DAP Design Tokens */
@@ -2190,8 +1366,51 @@ var DAP = (function (exports) {
             return targetValue < conditionValue;
           }
           return String(targetValue) < String(conditionValue);
+        case "StartsWith":
+          return String(targetValue).toLowerCase().startsWith(String(conditionValue).toLowerCase());
+        case "EndsWith":
+          return String(targetValue).toLowerCase().endsWith(String(conditionValue).toLowerCase());
+        case "In": {
+          let list;
+          if (Array.isArray(condition.value)) {
+            list = condition.value.map(String);
+          } else {
+            try {
+              const parsed = JSON.parse(String(condition.value));
+              list = Array.isArray(parsed) ? parsed.map(String) : [String(condition.value)];
+            } catch {
+              list = String(condition.value).split(",").map((s) => s.trim());
+            }
+          }
+          return list.map((v) => v.toLowerCase()).includes(String(targetValue).toLowerCase());
+        }
+        case "NotIn": {
+          let list;
+          if (Array.isArray(condition.value)) {
+            list = condition.value.map(String);
+          } else {
+            try {
+              const parsed = JSON.parse(String(condition.value));
+              list = Array.isArray(parsed) ? parsed.map(String) : [String(condition.value)];
+            } catch {
+              list = String(condition.value).split(",").map((s) => s.trim());
+            }
+          }
+          return !list.map((v) => v.toLowerCase()).includes(String(targetValue).toLowerCase());
+        }
+        case "Regex": {
+          try {
+            const rx = new RegExp(String(conditionValue));
+            return rx.test(String(targetValue));
+          } catch (rxErr) {
+            console.error(`[DAP] Invalid regex pattern "${conditionValue}":`, rxErr);
+            return false;
+          }
+        }
+        case "Empty":
+          return targetValue === "" || targetValue === null || targetValue === void 0 || String(targetValue).trim() === "";
         default:
-          console.warn(`[DAP] Unknown condition operator: ${condition.operator}`);
+          console.error(`[DAP] Unknown condition operator: ${condition.operator}`);
           return false;
       }
     } catch (error) {
@@ -2344,18 +1563,12 @@ var DAP = (function (exports) {
     async function setupStepTrigger(stepIndex, step, stepId) {
       if (!step.elementSelector || !step.elementTrigger) return;
       try {
-        const targetElement = await waitForElement3(step.elementSelector);
+        const targetElement = await waitForElement2(step.elementSelector);
         if (!targetElement) {
-          console.warn(`[DAP] Target element not found for step trigger: ${step.elementSelector}`);
-          console.warn(`[DAP] \u{1F6E1}\uFE0F Recovery: Advancing to next step in sequence.`);
-          if (stepIndex < payload.steps.length - 1) {
-            setTimeout(() => transitionToStep(stepIndex + 1), 100);
-          } else {
-            closeAll();
-          }
+          console.warn(`[DAP] Target element not found: ${step.elementSelector}`);
           return;
         }
-        const triggerEvent = normalizeTrigger2(step.elementTrigger);
+        const triggerEvent = normalizeTrigger(step.elementTrigger);
         const triggerHandler = () => {
           if (activeStepTriggered) return;
           activeStepTriggered = true;
@@ -2385,16 +1598,25 @@ var DAP = (function (exports) {
           break;
         case "tooltip":
           if (step.tooltip) {
-            await renderTooltipStep(step.tooltip);
+            await renderTooltipStep(step.tooltip, stepIndex);
           }
           break;
         case "popover":
           if (step.popover) {
-            await renderPopoverStep(step.popover);
+            await renderPopoverStep(step.popover, stepIndex);
           }
           break;
         case "survey":
-          console.warn("[DAP] Survey step not implemented");
+          if (step.survey) {
+            await renderSurveyStep(step.survey, stepIndex);
+          } else {
+            console.warn("[DAP] Survey step has no survey data \u2014 skipping");
+            if (stepIndex < payload.steps.length - 1) {
+              setTimeout(() => transitionToStep(stepIndex + 1), 100);
+            } else {
+              closeAll();
+            }
+          }
           break;
         case "rule":
           if (step.rule) {
@@ -2405,9 +1627,6 @@ var DAP = (function (exports) {
           break;
         default:
           console.warn(`[DAP] Unknown step kind: ${step.kind}`);
-      }
-      if (!showNavigation && stepIndex < payload.steps.length - 1) {
-        setTimeout(() => transitionToStep(stepIndex + 1), 2e3);
       }
     }
     async function renderModalStep(step, showNavigation) {
@@ -2454,32 +1673,107 @@ var DAP = (function (exports) {
         closeBtn.addEventListener("click", closeAll);
       }
     }
-    async function renderTooltipStep(tooltipPayload) {
+    async function renderSurveyStep(surveyPayload, stepIndex) {
+      try {
+        const surveyWithTracker = {
+          ...surveyPayload,
+          flowId: flow.id,
+          organizationId: flow.config?.organizationid || flow.config?.organizationId,
+          siteId: flow.config?.siteid || flow.config?.siteId || flow.config?.siteCollectionId,
+          stepId: payload.steps[stepIndex].stepId || `step-${stepIndex}`,
+          _completionTracker: {
+            onComplete: () => {
+              if (stepIndex < payload.steps.length - 1) {
+                transitionToStep(stepIndex + 1);
+              } else {
+                closeAll();
+              }
+            }
+          }
+        };
+        const surveyRenderer = getRenderer("survey");
+        if (surveyRenderer) {
+          await surveyRenderer({
+            id: `${id}-survey-${stepIndex}`,
+            type: "survey",
+            payload: surveyWithTracker,
+            config: flow.config
+          });
+        } else {
+          console.warn("[DAP] Survey renderer not registered \u2014 skipping survey step");
+          if (stepIndex < payload.steps.length - 1) {
+            setTimeout(() => transitionToStep(stepIndex + 1), 100);
+          } else {
+            closeAll();
+          }
+        }
+      } catch (error) {
+        console.error("[DAP] Error rendering survey step:", error);
+        if (stepIndex < payload.steps.length - 1) {
+          setTimeout(() => transitionToStep(stepIndex + 1), 100);
+        }
+      }
+    }
+    async function renderTooltipStep(tooltipPayload, stepIndex) {
       try {
         const tooltipRenderer = getRenderer("tooltip");
         if (tooltipRenderer) {
+          const tooltipWithTracker = {
+            ...tooltipPayload,
+            _completionTracker: {
+              onComplete: () => {
+                if (stepIndex < payload.steps.length - 1) {
+                  transitionToStep(stepIndex + 1);
+                } else {
+                  closeAll();
+                }
+              }
+            }
+          };
           await tooltipRenderer({
-            id: `${id}-tooltip`,
+            id: `${id}-tooltip-${stepIndex}`,
             type: "tooltip",
-            payload: tooltipPayload
+            payload: tooltipWithTracker
           });
         }
       } catch (error) {
         console.error("[DAP] Error rendering tooltip step:", error);
+        if (stepIndex < payload.steps.length - 1) {
+          setTimeout(() => transitionToStep(stepIndex + 1), 100);
+        } else {
+          closeAll();
+        }
       }
     }
-    async function renderPopoverStep(popoverPayload) {
+    async function renderPopoverStep(popoverPayload, stepIndex) {
       try {
         const popoverRenderer = getRenderer("popover");
         if (popoverRenderer) {
+          const popoverWithTracker = {
+            ...popoverPayload,
+            _completionTracker: {
+              onComplete: () => {
+                if (stepIndex < payload.steps.length - 1) {
+                  transitionToStep(stepIndex + 1);
+                } else {
+                  closeAll();
+                }
+              }
+            }
+          };
           await popoverRenderer({
-            id: `${id}-popover`,
+            id: `${id}-popover-${stepIndex}`,
             type: "popover",
-            payload: popoverPayload
+            payload: popoverWithTracker
           });
         }
       } catch (error) {
         console.error("[DAP] Error rendering popover step:", error);
+        if (stepIndex < payload.steps.length - 1) {
+          setTimeout(() => transitionToStep(stepIndex + 1), 100);
+        } else {
+          closeAll();
+        }
       }
     }
     async function renderRuleStep(rulePayload, stepIndex) {
@@ -2529,14 +1823,21 @@ var DAP = (function (exports) {
           rules,
           (nextFlowId) => {
             console.debug(`[DAP] *** RULE EVALUATION TRIGGERED ***`);
-            console.debug(`[DAP] Rule evaluation triggered transition to flow: ${nextFlowId}`);
-            console.debug(`[DAP] Rule Evaluated! Next Flow: ${nextFlowId} - Rule evaluation is working correctly`);
-            console.info(`[DAP] Would transition to flow: ${nextFlowId}`);
-            if (stepIndex < payload.steps.length - 1) {
-              console.debug(`[DAP] Auto-advancing to next step: ${stepIndex + 1}`);
-              setTimeout(() => transitionToStep(stepIndex + 1), 100);
+            console.debug(`[DAP] Rule evaluated \u2014 transitioning to flow: ${nextFlowId}`);
+            if (payload._onFlowBranch) {
+              payload._onFlowBranch(nextFlowId);
             } else {
-              console.debug(`[DAP] Rule step was the last step`);
+              const branched = document.dispatchEvent(
+                new CustomEvent("dap:flowbranch", {
+                  detail: { flowId: nextFlowId },
+                  bubbles: false,
+                  cancelable: true
+                })
+              );
+              if (branched) {
+                console.warn(`[DAP] No dap:flowbranch listener found \u2014 closing sequence instead`);
+                closeAll();
+              }
             }
           }
         );
@@ -2718,7 +2019,7 @@ var DAP = (function (exports) {
         return null;
     }
   }
-  async function waitForElement3(selector, timeout = 5e3) {
+  async function waitForElement2(selector, timeout = 5e3) {
     const existingElement = resolveSelector(selector);
     if (existingElement) return existingElement;
     return new Promise((resolve) => {
@@ -2742,7 +2043,7 @@ var DAP = (function (exports) {
       });
     });
   }
-  function normalizeTrigger2(trigger) {
+  function normalizeTrigger(trigger) {
     switch (trigger?.toLowerCase()) {
       case "hover":
         return "mouseenter";
@@ -2968,7 +2269,7 @@ var DAP = (function (exports) {
         const articleContainer = document.createElement("div");
         articleContainer.className = "dap-kb-article-container";
         if (content.content) {
-          articleContainer.innerHTML = content.content;
+          articleContainer.innerHTML = sanitizeHtml(content.content);
         } else if (url) {
           const fallback = createSequenceFallbackViewer(
             url,
@@ -3184,13 +2485,16 @@ var DAP = (function (exports) {
     downloadBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName || "download";
-      link.target = "_blank";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      if (window.downloadFile) {
+        window.downloadFile(url, fileName);
+      } else {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName || "download";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
     });
     const openBtn = document.createElement("button");
     openBtn.className = "dap-action-btn dap-open-btn";
@@ -3205,11 +2509,916 @@ var DAP = (function (exports) {
     return actions;
   }
 
-  // src/index.ts
-  init_registry();
-
   // src/experiences/modal.ts
   init_registry();
+  var modalCssText2 = `
+/* Font stack: system fonts are used; no external font requests are made. */
+
+:root {
+  --dap-bg-glass:        rgba(10, 10, 18, 0.72);
+  --dap-bg-surface:      rgba(18, 18, 30, 0.95);
+  --dap-bg-elevated:     rgba(30, 30, 48, 0.9);
+  --dap-bg-hover:        rgba(50, 50, 78, 0.6);
+  --dap-border:          rgba(255, 255, 255, 0.08);
+  --dap-border-glow:     rgba(120, 100, 255, 0.35);
+  --dap-accent:          #7c6aff;
+  --dap-accent-soft:     rgba(124, 106, 255, 0.15);
+  --dap-accent-glow:     rgba(124, 106, 255, 0.4);
+  --dap-text-primary:    #f0eeff;
+  --dap-text-secondary:  rgba(200, 195, 230, 0.65);
+  --dap-text-muted:      rgba(160, 155, 200, 0.4);
+  --dap-success:         #34d399;
+  --dap-warning:         #fbbf24;
+  --dap-danger:          #f87171;
+  --dap-radius-sm:       8px;
+  --dap-radius-md:       14px;
+  --dap-radius-lg:       20px;
+  --dap-radius-xl:       28px;
+  --dap-shadow-deep:     0 32px 80px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.5);
+  --dap-shadow-glow:     0 0 40px rgba(124, 106, 255, 0.12);
+  --dap-transition:      cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dap-ease:            cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* \u2500\u2500 Overlay \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 4, 12, 0.6);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  animation: dapOverlayIn 0.35s var(--dap-ease) both;
+  padding: 20px;
+}
+
+.dap-modal-overlay.dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+@keyframes dapOverlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes dapOverlayOut {
+  from { opacity: 1; backdrop-filter: blur(20px); }
+  to   { opacity: 0; backdrop-filter: blur(0px); }
+}
+
+/* Subtle noise grain overlay */
+.dap-modal-overlay::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px 200px;
+  z-index: -1;
+}
+
+/* \u2500\u2500 Modal Shell \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-modal {
+  position: relative;
+  background: var(--dap-bg-surface);
+  border: 1px solid var(--dap-border);
+  border-radius: var(--dap-radius-xl);
+  box-shadow: var(--dap-shadow-deep), var(--dap-shadow-glow), inset 0 1px 0 rgba(255,255,255,0.06);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  width: 100%;
+  overflow: hidden;
+  animation: dapModalIn 0.45s var(--dap-transition) both;
+  font-family: 'Sora', sans-serif;
+  color: var(--dap-text-primary);
+  will-change: transform;
+}
+
+/* Accent line at top */
+.dap-modal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--dap-accent), transparent);
+  opacity: 0.6;
+  z-index: 1;
+}
+
+@keyframes dapModalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.88) translateY(24px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes dapModalOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.92) translateY(-16px);
+    filter: blur(4px);
+  }
+}
+
+/* Size Variants */
+.dap-modal-small  { max-width: 420px; }
+.dap-modal-medium { max-width: 640px; }
+.dap-modal-large  { max-width: 900px; }
+.dap-modal-xl     { max-width: 1100px; }
+.dap-modal-full   { max-width: calc(100vw - 40px); max-height: calc(100vh - 40px); }
+
+/* \u2500\u2500 Header \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--dap-border);
+  background: linear-gradient(180deg, rgba(30,28,56,0.6) 0%, transparent 100%);
+  flex-shrink: 0;
+  position: relative;
+  cursor: default;
+  gap: 12px;
+  transition: background 0.2s;
+}
+
+.dap-modal-header:hover {
+  background: linear-gradient(180deg, rgba(40,38,70,0.7) 0%, transparent 100%);
+}
+
+.dap-modal-header.dragging {
+  cursor: grabbing;
+  background: linear-gradient(180deg, rgba(50,48,88,0.8) 0%, transparent 100%);
+}
+
+/* Drag indicator dots */
+.dap-modal-header::after {
+  content: '\u283F';
+  font-size: 14px;
+  color: var(--dap-text-muted);
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 50%;
+  margin-top: -7px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.dap-modal-header:hover::after {
+  opacity: 1;
+}
+
+/* \u2500\u2500 Title \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--dap-text-primary);
+  margin: 0;
+  flex: 1;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* \u2500\u2500 Close Button \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-modal-close {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--dap-border);
+  border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+  color: var(--dap-text-secondary);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s var(--dap-ease);
+  position: relative;
+  overflow: hidden;
+}
+
+.dap-modal-close::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(248, 113, 113, 0.2), transparent);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.dap-modal-close:hover {
+  border-color: rgba(248, 113, 113, 0.4);
+  color: var(--dap-danger);
+  transform: rotate(90deg) scale(1.1);
+}
+
+.dap-modal-close:hover::before { opacity: 1; }
+
+.dap-modal-close:active {
+  transform: rotate(90deg) scale(0.95);
+}
+
+/* \u2500\u2500 Body \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px;
+  scroll-behavior: smooth;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Custom scrollbar */
+.dap-modal-body::-webkit-scrollbar {
+  width: 4px;
+}
+.dap-modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dap-modal-body::-webkit-scrollbar-thumb {
+  background: rgba(124, 106, 255, 0.3);
+  border-radius: 2px;
+}
+.dap-modal-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 106, 255, 0.5);
+}
+
+/* \u2500\u2500 Footer \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--dap-border);
+  background: linear-gradient(0deg, rgba(10,10,18,0.4) 0%, transparent 100%);
+  flex-shrink: 0;
+}
+
+.dap-modal-footer:empty {
+  padding: 0;
+  border: none;
+}
+
+.dap-footer-text {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dap-text-muted);
+  line-height: 1.5;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 400;
+}
+
+/* \u2500\u2500 Text Content \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-content-text {
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--dap-text-secondary);
+  animation: dapFadeUp 0.4s var(--dap-ease) both;
+}
+
+.dap-content-text p { margin: 0 0 12px; }
+.dap-content-text p:last-child { margin: 0; }
+
+.dap-content-text h1, .dap-content-text h2, .dap-content-text h3 {
+  color: var(--dap-text-primary);
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.dap-content-text a {
+  color: var(--dap-accent);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(124,106,255,0.3);
+  transition: border-color 0.2s;
+}
+.dap-content-text a:hover {
+  border-color: var(--dap-accent);
+}
+
+.dap-content-text code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  background: rgba(124,106,255,0.1);
+  border: 1px solid rgba(124,106,255,0.2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #c4b8ff;
+}
+
+@keyframes dapFadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* \u2500\u2500 Image \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-content-image {
+  width: 100%;
+  border-radius: var(--dap-radius-lg);
+  display: block;
+  object-fit: cover;
+  border: 1px solid var(--dap-border);
+  animation: dapFadeIn 0.5s var(--dap-ease) both;
+  transition: transform 0.4s var(--dap-ease), box-shadow 0.4s;
+}
+
+.dap-content-image:hover {
+  transform: scale(1.01);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+}
+
+/* \u2500\u2500 Video \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-content-video {
+  width: 100%;
+  border-radius: var(--dap-radius-lg);
+  border: 1px solid var(--dap-border);
+  background: #000;
+  display: block;
+  animation: dapFadeIn 0.5s var(--dap-ease) both;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+/* \u2500\u2500 YouTube \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-content-youtube {
+  width: 100%;
+  aspect-ratio: 16/9;
+  border-radius: var(--dap-radius-lg);
+  border: 1px solid var(--dap-border);
+  display: block;
+  animation: dapFadeIn 0.5s var(--dap-ease) both;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+/* \u2500\u2500 Link \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-content-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--dap-accent-soft);
+  border: 1px solid var(--dap-border-glow);
+  border-radius: var(--dap-radius-sm);
+  color: var(--dap-accent);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.dap-content-link:hover {
+  background: rgba(124,106,255,0.22);
+  transform: translateX(3px);
+  box-shadow: 0 4px 16px rgba(124,106,255,0.2);
+}
+
+.dap-content-link::after {
+  content: '\u2197';
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* \u2500\u2500 Buttons \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-modal-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.dap-modal-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: var(--dap-radius-sm);
+  font-family: 'Sora', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.22s var(--dap-ease);
+  border: 1px solid transparent;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+.dap-modal-button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.08), transparent);
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+.dap-modal-button:hover::after { opacity: 1; }
+
+.dap-modal-button.primary {
+  background: linear-gradient(135deg, #7c6aff, #9f54f7);
+  color: #fff;
+  border-color: rgba(255,255,255,0.15);
+  box-shadow: 0 4px 16px rgba(124,106,255,0.3), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+
+.dap-modal-button.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(124,106,255,0.45), inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+.dap-modal-button.primary:active {
+  transform: translateY(0);
+}
+
+.dap-modal-button.secondary {
+  background: rgba(255,255,255,0.05);
+  color: var(--dap-text-primary);
+  border-color: var(--dap-border);
+}
+
+.dap-modal-button.secondary:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.15);
+  transform: translateY(-1px);
+}
+
+.dap-modal-button.outline {
+  background: transparent;
+  color: var(--dap-accent);
+  border-color: var(--dap-border-glow);
+}
+
+.dap-modal-button.outline:hover {
+  background: var(--dap-accent-soft);
+  transform: translateY(-1px);
+}
+
+/* \u2500\u2500 Knowledge Base \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-content-kb {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dap-content-kb > h3 {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dap-accent);
+  margin: 0 0 12px;
+  font-family: 'JetBrains Mono', monospace;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dap-content-kb > h3::before {
+  content: '';
+  display: block;
+  width: 16px;
+  height: 2px;
+  background: var(--dap-accent);
+  border-radius: 1px;
+}
+
+.dap-kb-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: dapFadeUp 0.3s var(--dap-ease) both;
+}
+
+.dap-kb-item-button {
+  width: 100%;
+  text-align: left;
+  padding: 12px 16px;
+  background: var(--dap-bg-elevated);
+  border: 1px solid var(--dap-border);
+  border-radius: var(--dap-radius-md);
+  color: var(--dap-text-primary);
+  font-family: 'Sora', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.22s var(--dap-ease);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+}
+
+.dap-kb-item-button::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--dap-accent);
+  transform: scaleY(0);
+  transition: transform 0.2s var(--dap-ease);
+  border-radius: 1px;
+}
+
+.dap-kb-item-button:hover {
+  background: var(--dap-bg-hover);
+  border-color: var(--dap-border-glow);
+  transform: translateX(4px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+
+.dap-kb-item-button:hover::before {
+  transform: scaleY(1);
+}
+
+.dap-kb-description {
+  font-size: 12.5px;
+  color: var(--dap-text-muted);
+  margin: 2px 0 0 42px;
+  line-height: 1.4;
+}
+
+.dap-kb-no-items {
+  font-size: 14px;
+  color: var(--dap-text-muted);
+  text-align: center;
+  padding: 32px;
+  border: 1px dashed var(--dap-border);
+  border-radius: var(--dap-radius-md);
+  margin: 0;
+}
+
+/* KB Icons */
+.dap-kb-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  background: rgba(124,106,255,0.1);
+}
+
+/* \u2500\u2500 File Type Badge \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-file-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--dap-accent-soft);
+  border: 1px solid var(--dap-border-glow);
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--dap-accent);
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+/* \u2500\u2500 KB Item Viewer \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-kb-item-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dap-kb-viewer-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--dap-border);
+}
+
+.dap-kb-back-button {
+  align-self: flex-start;
+  font-size: 13px;
+  padding: 7px 14px;
+}
+
+.dap-kb-item-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--dap-text-primary);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.dap-file-metadata {
+  font-size: 12px;
+  color: var(--dap-text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  margin: 0;
+}
+
+/* \u2500\u2500 Media Viewers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-kb-image,
+.dap-kb-video {
+  width: 100%;
+  border-radius: var(--dap-radius-lg);
+  border: 1px solid var(--dap-border);
+  display: block;
+  background: #000;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+.dap-kb-pdf-container,
+.dap-kb-document-container,
+.dap-pdf-viewer-container,
+.dap-document-viewer-container,
+.dap-presentation-viewer-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dap-kb-pdf-iframe,
+.dap-pdf-iframe,
+.dap-document-iframe,
+.dap-presentation-iframe {
+  width: 100%;
+  height: 520px;
+  border: 1px solid var(--dap-border);
+  border-radius: var(--dap-radius-md);
+  background: rgba(255,255,255,0.02);
+}
+
+.dap-kb-youtube {
+  width: 100%;
+  aspect-ratio: 16/9;
+  border-radius: var(--dap-radius-lg);
+  border: 1px solid var(--dap-border);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+/* \u2500\u2500 Article Viewer \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-kb-article-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dap-article-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--dap-text-primary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.dap-article-description {
+  font-size: 13.5px;
+  color: var(--dap-text-secondary);
+  line-height: 1.65;
+  margin: 0;
+}
+
+.dap-article-content {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--dap-text-secondary);
+  padding: 20px;
+  background: var(--dap-bg-elevated);
+  border: 1px solid var(--dap-border);
+  border-radius: var(--dap-radius-md);
+}
+
+/* \u2500\u2500 Loading \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-article-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 48px 24px;
+  color: var(--dap-text-muted);
+  font-size: 13px;
+}
+
+.dap-loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--dap-border);
+  border-top-color: var(--dap-accent);
+  border-radius: 50%;
+  animation: dapSpin 0.8s linear infinite;
+}
+
+@keyframes dapSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* \u2500\u2500 Action Buttons \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-document-actions,
+.dap-enhanced-document-actions,
+.dap-web-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.dap-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: var(--dap-radius-sm);
+  font-family: 'Sora', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s var(--dap-ease);
+  border: 1px solid var(--dap-border);
+  letter-spacing: 0.01em;
+}
+
+.dap-primary-btn, .dap-download-btn.dap-primary-btn {
+  background: linear-gradient(135deg, #7c6aff, #9f54f7);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(124,106,255,0.3);
+}
+
+.dap-primary-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(124,106,255,0.45);
+}
+
+.dap-secondary-btn, .dap-open-btn {
+  background: rgba(255,255,255,0.05);
+  color: var(--dap-text-primary);
+}
+
+.dap-secondary-btn:hover, .dap-open-btn:hover {
+  background: rgba(255,255,255,0.1);
+  transform: translateY(-1px);
+}
+
+.dap-btn-icon { font-size: 15px; }
+
+/* \u2500\u2500 Fallback Viewers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-fallback-viewer,
+.dap-enhanced-fallback-viewer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 40px 24px;
+  text-align: center;
+  background: var(--dap-bg-elevated);
+  border: 1px dashed var(--dap-border);
+  border-radius: var(--dap-radius-lg);
+}
+
+.dap-fallback-icon {
+  font-size: 48px;
+  line-height: 1;
+  animation: dapFadeIn 0.5s var(--dap-ease);
+}
+
+.dap-enhanced-fallback-message h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dap-text-primary);
+  margin: 0 0 8px;
+}
+
+.dap-fallback-primary {
+  font-size: 13.5px;
+  color: var(--dap-text-secondary);
+  margin: 0 0 6px;
+}
+
+.dap-fallback-filename,
+.dap-fallback-type {
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--dap-text-muted);
+  margin: 2px 0 0;
+}
+
+.dap-kb-link-container {
+  padding: 20px;
+  background: var(--dap-bg-elevated);
+  border: 1px solid var(--dap-border);
+  border-radius: var(--dap-radius-md);
+}
+
+.dap-kb-link-info h4 {
+  margin: 0 0 8px;
+  color: var(--dap-text-primary);
+  font-size: 15px;
+}
+
+.dap-kb-link-info p {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--dap-text-muted);
+}
+
+.dap-kb-document-info {
+  padding: 20px;
+  background: var(--dap-bg-elevated);
+  border: 1px solid var(--dap-border);
+  border-radius: var(--dap-radius-md);
+}
+
+.dap-kb-document-info h4 {
+  margin: 0 0 8px;
+  color: var(--dap-text-primary);
+}
+
+.dap-kb-external-btn,
+.dap-kb-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  background: var(--dap-accent-soft);
+  border: 1px solid var(--dap-border-glow);
+  border-radius: var(--dap-radius-sm);
+  color: var(--dap-accent);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'Sora', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 12px;
+}
+
+.dap-kb-external-btn:hover, .dap-kb-download-btn:hover {
+  background: rgba(124,106,255,0.22);
+  transform: translateY(-1px);
+}
+
+/* \u2500\u2500 Web Content Viewer \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-web-viewer-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dap-web-iframe {
+  border-radius: var(--dap-radius-md) !important;
+}
+
+/* \u2500\u2500 Misc Animations \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+@keyframes dapFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* \u2500\u2500 Responsive \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+@media (max-width: 600px) {
+  .dap-modal-overlay { padding: 12px; }
+  .dap-modal { border-radius: var(--dap-radius-lg); }
+  .dap-modal-body { padding: 16px; }
+  .dap-modal-header { padding: 14px 16px 12px; }
+  .dap-modal-footer { padding: 12px 16px; }
+  .dap-modal-title { font-size: 14px; }
+  .dap-kb-item-button { padding: 10px 12px; }
+  .dap-modal-button { padding: 9px 16px; font-size: 13px; }
+}
+
+/* \u2500\u2500 Focus Visible \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-modal *:focus-visible {
+  outline: 2px solid var(--dap-accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+`;
   function registerModal() {
     register("modal", renderModal);
   }
@@ -3226,12 +3435,16 @@ var DAP = (function (exports) {
     modal.setAttribute("aria-modal", "true");
     modal.setAttribute("aria-labelledby", "modal-title");
     setupModalAccessibility(modal);
+    let _modalClosed = false;
     function closeModal() {
+      if (_modalClosed) return;
+      _modalClosed = true;
+      document.removeEventListener("keydown", handleKeyboard);
       if (modal._accessibilityCleanup) {
         modal._accessibilityCleanup();
       }
-      overlay.style.animation = "modalFadeOut 0.2s ease-in";
-      modal.style.animation = "modalSlideOut 0.2s ease-in";
+      overlay.style.animation = "dapOverlayOut 0.28s var(--dap-ease) both";
+      modal.style.animation = "dapModalOut 0.28s var(--dap-ease) both";
       setTimeout(() => {
         overlay.remove();
         prevActive?.focus();
@@ -3239,17 +3452,13 @@ var DAP = (function (exports) {
           console.debug(`[DAP] Completing modal flow: ${id}`);
           completionTracker.onComplete();
         }
-      }, 200);
+      }, 280);
     }
     overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) {
-        closeModal();
-      }
+      if (e.target === overlay) closeModal();
     });
     const closeBtn = modal.querySelector(".dap-modal-close");
-    if (closeBtn) {
-      closeBtn.addEventListener("click", closeModal);
-    }
+    if (closeBtn) closeBtn.addEventListener("click", closeModal);
     function handleKeyboard(e) {
       if (e.key === "Escape") {
         closeModal();
@@ -3257,36 +3466,13 @@ var DAP = (function (exports) {
       }
     }
     document.addEventListener("keydown", handleKeyboard);
-    modal._closeModal = closeModal;
-    const nextBtn = modal.querySelector(".dap-modal-next-btn");
-    if (nextBtn) {
-      nextBtn.addEventListener("click", closeModal);
-    }
-    if (!document.getElementById("dap-modal-exit-styles")) {
-      const style = document.createElement("style");
-      style.id = "dap-modal-exit-styles";
-      style.textContent = `
-      @keyframes modalFadeOut {
-        from { opacity: 1; backdrop-filter: blur(4px); }
-        to { opacity: 0; backdrop-filter: blur(0px); }
-      }
-      @keyframes modalSlideOut {
-        from { opacity: 1; transform: scale(1) translateY(0); }
-        to { opacity: 0; transform: scale(0.95) translateY(-10px); }
-      }
-    `;
-      document.head.appendChild(style);
-    }
     setupModalDragging(modal, header, overlay);
     setupMediaHandling(modal, overlay);
   }
   function setupModalDragging(modal, header, overlay) {
     let isDragging = false;
-    let dragStartX = 0;
-    let dragStartY = 0;
-    let modalStartX = 0;
-    let modalStartY = 0;
-    header.style.cursor = "move";
+    let dragStartX = 0, dragStartY = 0;
+    let modalStartX = 0, modalStartY = 0;
     const startDrag = (e) => {
       isDragging = true;
       dragStartX = e.clientX;
@@ -3296,6 +3482,7 @@ var DAP = (function (exports) {
       modalStartY = rect.top;
       header.classList.add("dragging");
       overlay.classList.add("dragging");
+      modal.style.transition = "none";
       document.addEventListener("mousemove", drag);
       document.addEventListener("mouseup", endDrag);
       e.preventDefault();
@@ -3307,12 +3494,8 @@ var DAP = (function (exports) {
       let newX = modalStartX + deltaX;
       let newY = modalStartY + deltaY;
       const modalRect = modal.getBoundingClientRect();
-      const viewport = {
-        width: window.innerWidth,
-        height: window.innerHeight
-      };
-      newX = Math.max(10, Math.min(newX, viewport.width - modalRect.width - 10));
-      newY = Math.max(10, Math.min(newY, viewport.height - modalRect.height - 10));
+      newX = Math.max(10, Math.min(newX, window.innerWidth - modalRect.width - 10));
+      newY = Math.max(10, Math.min(newY, window.innerHeight - modalRect.height - 10));
       modal.style.position = "fixed";
       modal.style.left = `${newX}px`;
       modal.style.top = `${newY}px`;
@@ -3322,6 +3505,7 @@ var DAP = (function (exports) {
       isDragging = false;
       header.classList.remove("dragging");
       overlay.classList.remove("dragging");
+      modal.style.transition = "";
       document.removeEventListener("mousemove", drag);
       document.removeEventListener("mouseup", endDrag);
     };
@@ -3333,28 +3517,23 @@ var DAP = (function (exports) {
     );
     const firstFocusable = focusableElements[0];
     const lastFocusable = focusableElements[focusableElements.length - 1];
-    if (firstFocusable) {
-      firstFocusable.focus();
-    }
+    if (firstFocusable) firstFocusable.focus();
     const handleTabKey = (e) => {
-      if (e.key === "Tab") {
-        if (e.shiftKey) {
-          if (document.activeElement === firstFocusable) {
-            e.preventDefault();
-            lastFocusable?.focus();
-          }
-        } else {
-          if (document.activeElement === lastFocusable) {
-            e.preventDefault();
-            firstFocusable?.focus();
-          }
+      if (e.key !== "Tab") return;
+      if (e.shiftKey) {
+        if (document.activeElement === firstFocusable) {
+          e.preventDefault();
+          lastFocusable?.focus();
+        }
+      } else {
+        if (document.activeElement === lastFocusable) {
+          e.preventDefault();
+          firstFocusable?.focus();
         }
       }
     };
     modal.addEventListener("keydown", handleTabKey);
-    modal._accessibilityCleanup = () => {
-      modal.removeEventListener("keydown", handleTabKey);
-    };
+    modal._accessibilityCleanup = () => modal.removeEventListener("keydown", handleTabKey);
   }
   function setupMediaHandling(modal, overlay) {
     const videos = modal.querySelectorAll("video");
@@ -3370,41 +3549,29 @@ var DAP = (function (exports) {
       originalRemove();
       setTimeout(() => {
         pausedVideos.forEach((video) => {
-          if (document.contains(video)) {
-            video.play().catch(() => {
-            });
-          }
+          if (document.contains(video)) video.play().catch(() => {
+          });
         });
       }, 100);
     };
   }
   function createModalElements(payload) {
-    console.log("[DAP] Creating modal elements with payload:", payload);
     const overlay = document.createElement("div");
     overlay.className = "dap-modal-overlay";
     const modal = document.createElement("div");
-    modal.className = "dap-modal";
-    if (payload.size) {
-      modal.classList.add(`dap-modal-${payload.size}`);
-    } else {
-      modal.classList.add("dap-modal-medium");
-    }
+    modal.className = `dap-modal dap-modal-${payload.size || "medium"}`;
     const header = document.createElement("div");
     header.className = "dap-modal-header";
+    const title = document.createElement("h2");
+    title.className = "dap-modal-title";
+    title.id = "modal-title";
     if (payload.title) {
-      const title = document.createElement("h2");
-      title.className = "dap-modal-title";
-      title.id = "modal-title";
       title.textContent = payload.title;
-      header.appendChild(title);
     } else {
-      const title = document.createElement("h2");
-      title.className = "dap-modal-title";
-      title.id = "modal-title";
       title.style.visibility = "hidden";
       title.innerHTML = "&nbsp;";
-      header.appendChild(title);
     }
+    header.appendChild(title);
     const closeBtn = document.createElement("button");
     closeBtn.className = "dap-modal-close";
     closeBtn.setAttribute("aria-label", "Close modal");
@@ -3412,17 +3579,15 @@ var DAP = (function (exports) {
     header.appendChild(closeBtn);
     const body = document.createElement("div");
     body.className = "dap-modal-body";
-    console.debug("[DAP] Processing modal body:", payload.body);
-    console.debug("[DAP] Body type:", typeof payload.body);
-    console.debug("[DAP] Is body array:", Array.isArray(payload.body));
-    if (payload.body && Array.isArray(payload.body)) {
+    if (Array.isArray(payload.body)) {
       payload.body.forEach((content, index) => {
-        console.debug(`[DAP] Processing body content ${index}:`, content);
-        const contentEl = renderModalContent2(content);
-        if (contentEl) body.appendChild(contentEl);
+        const el = renderModalContent2(content);
+        if (el) {
+          el.style.animationDelay = `${index * 60}ms`;
+          body.appendChild(el);
+        }
       });
     } else if (payload.body) {
-      console.warn("[DAP] Body is not an array:", payload.body);
       const textEl = document.createElement("div");
       textEl.className = "dap-content-text";
       textEl.textContent = String(payload.body);
@@ -3436,16 +3601,6 @@ var DAP = (function (exports) {
       footerText.innerHTML = sanitizeHtml(payload.footerText);
       footer.appendChild(footerText);
     }
-    const hasButtons2 = payload.body && Array.isArray(payload.body) && payload.body.some((c) => c.kind === "button");
-    if (payload._completionTracker && !hasButtons2) {
-      const nextBtn = document.createElement("button");
-      nextBtn.className = "dap-modal-button primary";
-      nextBtn.textContent = "Next step";
-      nextBtn.style.padding = "10px 20px";
-      nextBtn.style.minWidth = "120px";
-      nextBtn.classList.add("dap-modal-next-btn");
-      footer.appendChild(nextBtn);
-    }
     modal.appendChild(header);
     modal.appendChild(body);
     modal.appendChild(footer);
@@ -3453,81 +3608,72 @@ var DAP = (function (exports) {
     return { overlay, modal, header, body, footer };
   }
   function renderModalContent2(content) {
-    console.log("[DAP] Rendering modal content with kind:", content.kind);
     switch (content.kind) {
-      case "text":
-        const textEl = document.createElement("div");
-        textEl.className = "dap-content-text";
-        textEl.innerHTML = sanitizeHtml(content.html);
-        return textEl;
-      case "link":
-        const linkEl = document.createElement("a");
-        linkEl.className = "dap-content-link";
-        linkEl.href = content.href;
-        linkEl.textContent = content.label || content.href;
-        linkEl.target = "_blank";
-        linkEl.rel = "noopener noreferrer";
-        return linkEl;
-      case "image":
-        const imgEl = document.createElement("img");
-        imgEl.className = "dap-content-image";
-        imgEl.src = content.url;
-        imgEl.alt = content.alt || "";
-        return imgEl;
-      case "video":
+      case "text": {
+        const el = document.createElement("div");
+        el.className = "dap-content-text";
+        el.innerHTML = sanitizeHtml(content.html);
+        return el;
+      }
+      case "link": {
+        const el = document.createElement("a");
+        el.className = "dap-content-link";
+        el.href = content.href;
+        el.textContent = content.label || content.href;
+        el.target = "_blank";
+        el.rel = "noopener noreferrer";
+        return el;
+      }
+      case "image": {
+        const wrap = document.createElement("div");
+        wrap.style.cssText = "overflow:hidden;border-radius:var(--dap-radius-lg);";
+        const img = document.createElement("img");
+        img.className = "dap-content-image";
+        img.src = content.url;
+        img.alt = content.alt || "";
+        wrap.appendChild(img);
+        return wrap;
+      }
+      case "video": {
         if (content.sources && content.sources.length > 0) {
-          const videoEl = document.createElement("video");
-          videoEl.className = "dap-content-video";
-          videoEl.controls = true;
+          const video = document.createElement("video");
+          video.className = "dap-content-video";
+          video.controls = true;
           content.sources.forEach((source) => {
-            const sourceEl = document.createElement("source");
-            sourceEl.src = source.src;
-            if (source.type) sourceEl.type = source.type;
-            videoEl.appendChild(sourceEl);
+            const s = document.createElement("source");
+            s.src = source.src;
+            if (source.type) s.type = source.type;
+            video.appendChild(s);
           });
-          return videoEl;
+          return video;
         }
         return null;
-      case "youtube":
-        const iframeEl = document.createElement("iframe");
-        iframeEl.className = "dap-content-youtube";
-        iframeEl.src = content.href;
-        iframeEl.setAttribute("frameborder", "0");
-        iframeEl.setAttribute("allowfullscreen", "true");
-        return iframeEl;
+      }
+      case "youtube": {
+        const iframe = document.createElement("iframe");
+        iframe.className = "dap-content-youtube";
+        iframe.src = content.href;
+        iframe.setAttribute("frameborder", "0");
+        iframe.setAttribute("allowfullscreen", "true");
+        iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+        return iframe;
+      }
       case "kb":
-        console.debug("[DAP] Rendering KB content:", content);
         return renderKnowledgeBase(content);
       case "kb-item-viewer":
-        console.debug("[DAP] Rendering KB item viewer:", content);
         return renderKBItemViewer(content);
       case "article":
-        console.debug("[DAP] Rendering Article content:", content);
-        console.debug("[DAP] Detected MIME type:", content.mime);
         return createArticleViewer(content);
-      case "button":
-        const btn = document.createElement("button");
-        btn.className = `dap-modal-button ${content.variant || "primary"}`;
-        btn.textContent = content.label;
-        btn.style.marginTop = "10px";
-        btn.style.width = "100%";
-        btn.onclick = () => {
-          const modal = btn.closest(".dap-modal");
-          if (modal && modal._closeModal) {
-            modal._closeModal();
-          }
-        };
-        return btn;
       default:
         console.warn("[DAP] Unknown content kind:", content?.kind);
         return null;
     }
   }
+  var kbState = null;
   function renderKnowledgeBase(content) {
     const kbEl = document.createElement("div");
     kbEl.className = "dap-content-kb";
     if (!kbState || kbState.view === "item") {
-      console.debug("[DAP] Initializing KB state with items:", content.items);
       kbState = {
         view: "list",
         items: content.items || [],
@@ -3535,7 +3681,6 @@ var DAP = (function (exports) {
         title: content.title || "Knowledge Base",
         modalBodyRef: null
       };
-      console.debug("[DAP] KB state initialized, items count:", kbState.items.length);
     }
     if (content.title) {
       const title = document.createElement("h3");
@@ -3543,41 +3688,34 @@ var DAP = (function (exports) {
       kbEl.appendChild(title);
     }
     if (content.items && Array.isArray(content.items)) {
-      console.debug("[DAP] Processing KB items:", content.items);
       content.items.forEach((item, index) => {
-        console.debug(`[DAP] Processing KB item ${index}:`, item);
         const itemEl = document.createElement("div");
         itemEl.className = "dap-kb-item";
-        let itemUrl = "";
-        let itemTitle = "";
-        let itemDescription = "";
-        let itemType = "";
+        itemEl.style.animationDelay = `${index * 50}ms`;
+        let itemUrl = "", itemTitle = "", itemDescription = "", itemType = "";
         if (typeof item === "string") {
-          itemUrl = item;
-          itemTitle = item;
+          itemUrl = itemTitle = item;
           itemType = "link";
         } else if (item && typeof item === "object") {
-          const kbItem = item;
-          itemUrl = kbItem.url || "";
-          itemTitle = kbItem.title || "";
-          itemDescription = kbItem.description || "";
-          itemType = kbItem.itemType || detectContentType(itemUrl, kbItem.fileName);
-          console.debug(`[DAP] Extracted: url=${itemUrl}, title=${itemTitle}, description=${itemDescription}, type=${itemType}`);
+          const ki = item;
+          itemUrl = ki.url || "";
+          itemTitle = ki.title || "";
+          itemDescription = ki.description || "";
+          itemType = ki.itemType || detectContentType(itemUrl, ki.fileName);
         } else {
-          console.warn("[DAP] Invalid KB item structure:", item);
           return;
         }
-        if (!itemUrl || !itemTitle) {
-          console.warn("[DAP] KB item missing required fields (url or title), skipping:", item);
-          return;
-        }
+        if (!itemUrl || !itemTitle) return;
         const button = document.createElement("button");
-        button.className = "dap-kb-item-button dap-modal-button primary";
-        button.textContent = itemTitle;
+        button.className = "dap-kb-item-button";
         button.title = itemDescription || itemTitle;
         const icon = document.createElement("span");
         icon.className = `dap-kb-icon dap-kb-icon-${itemType}`;
-        button.insertBefore(icon, button.firstChild);
+        icon.textContent = getTypeEmoji(itemType);
+        button.appendChild(icon);
+        const label = document.createElement("span");
+        label.textContent = itemTitle;
+        button.appendChild(label);
         button.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -3593,13 +3731,29 @@ var DAP = (function (exports) {
         kbEl.appendChild(itemEl);
       });
     } else {
-      console.warn("[DAP] KB content has no items or items is not an array:", content);
-      const noItemsMsg = document.createElement("p");
-      noItemsMsg.className = "dap-kb-no-items";
-      noItemsMsg.textContent = "No knowledge base items available.";
-      kbEl.appendChild(noItemsMsg);
+      const noItems = document.createElement("p");
+      noItems.className = "dap-kb-no-items";
+      noItems.textContent = "No knowledge base items available.";
+      kbEl.appendChild(noItems);
     }
     return kbEl;
+  }
+  function getTypeEmoji(type) {
+    const map = {
+      video: "\u{1F3A5}",
+      image: "\u{1F5BC}\uFE0F",
+      pdf: "\u{1F4C4}",
+      docx: "\u{1F4DD}",
+      doc: "\u{1F4DD}",
+      pptx: "\u{1F4CA}",
+      ppt: "\u{1F4CA}",
+      xlsx: "\u{1F4C8}",
+      xls: "\u{1F4C8}",
+      youtube: "\u25B6\uFE0F",
+      link: "\u{1F517}",
+      article: "\u{1F4F0}"
+    };
+    return map[type] || "\u{1F4C4}";
   }
   function renderKBItemViewer(content) {
     const viewerEl = document.createElement("div");
@@ -3608,14 +3762,11 @@ var DAP = (function (exports) {
     headerEl.className = "dap-kb-viewer-header";
     const backBtn = document.createElement("button");
     backBtn.className = "dap-kb-back-button dap-modal-button outline";
-    backBtn.innerHTML = "\u2190 Back to " + (content.kbTitle || "Knowledge Base");
-    backBtn.addEventListener("click", () => {
-      goBackToKBList();
-    });
+    backBtn.textContent = "\u2190 Back to " + (content.kbTitle || "Knowledge Base");
+    backBtn.addEventListener("click", goBackToKBList);
     headerEl.appendChild(backBtn);
     const itemType = content.item.itemType || detectContentType(content.item.url, content.item.fileName);
-    const badge = createFileTypeBadge(itemType, content.item.fileName);
-    headerEl.appendChild(badge);
+    headerEl.appendChild(createFileTypeBadge(itemType, content.item.fileName));
     const title = document.createElement("h3");
     title.className = "dap-kb-item-title";
     title.textContent = content.item.title || "Content";
@@ -3623,19 +3774,16 @@ var DAP = (function (exports) {
     if (content.item.fileName) {
       const fileInfo = document.createElement("p");
       fileInfo.className = "dap-file-metadata";
-      fileInfo.innerHTML = `<strong>File:</strong> ${content.item.fileName}`;
+      fileInfo.textContent = `\u{1F4C1} ${content.item.fileName}`;
       headerEl.appendChild(fileInfo);
     }
     viewerEl.appendChild(headerEl);
     const contentEl = renderKBItemContent(content.item);
-    if (contentEl) {
-      viewerEl.appendChild(contentEl);
-    }
+    if (contentEl) viewerEl.appendChild(contentEl);
     return viewerEl;
   }
   function renderKBItemContent(item) {
     const itemType = item.itemType || detectContentType(item.url, item.fileName);
-    console.debug("[DAP] Rendering KB item content, type:", itemType, "url:", item.url);
     switch (itemType) {
       case "video":
         return createVideoViewer(item.url);
@@ -3656,26 +3804,21 @@ var DAP = (function (exports) {
     }
   }
   function createVideoViewer(url) {
-    const videoEl = document.createElement("video");
-    videoEl.className = "dap-kb-video";
-    videoEl.controls = true;
-    videoEl.preload = "metadata";
-    videoEl.style.width = "100%";
-    videoEl.style.maxHeight = "400px";
-    const source = document.createElement("source");
-    source.src = url;
-    videoEl.appendChild(source);
-    return videoEl;
+    const video = document.createElement("video");
+    video.className = "dap-kb-video";
+    video.controls = true;
+    video.preload = "metadata";
+    const src = document.createElement("source");
+    src.src = url;
+    video.appendChild(src);
+    return video;
   }
   function createImageViewer(url, alt) {
-    const imgEl = document.createElement("img");
-    imgEl.className = "dap-kb-image";
-    imgEl.src = url;
-    imgEl.alt = alt || "";
-    imgEl.style.width = "100%";
-    imgEl.style.maxHeight = "500px";
-    imgEl.style.objectFit = "contain";
-    return imgEl;
+    const img = document.createElement("img");
+    img.className = "dap-kb-image";
+    img.src = url;
+    img.alt = alt || "";
+    return img;
   }
   function createPDFViewer(url, fileName) {
     const container = document.createElement("div");
@@ -3683,80 +3826,119 @@ var DAP = (function (exports) {
     const iframe = document.createElement("iframe");
     iframe.className = "dap-kb-pdf-iframe";
     iframe.src = url;
-    iframe.style.width = "100%";
-    iframe.style.height = "500px";
-    iframe.style.border = "1px solid #ddd";
+    iframe.setAttribute("frameborder", "0");
     const fallback = document.createElement("div");
-    fallback.className = "dap-kb-pdf-fallback";
-    fallback.innerHTML = `
-    <p>PDF preview not available in this browser.</p>
-    <button class="dap-kb-download-btn dap-modal-button secondary" onclick="window.open('${url}', '_blank')">
-      Open PDF in New Tab
-    </button>
-  `;
+    fallback.className = "dap-enhanced-fallback-viewer";
+    fallback.style.display = "none";
+    fallback.innerHTML = `<div class="dap-fallback-icon">\u{1F4C4}</div>
+    <div><p class="dap-fallback-primary">PDF preview not available.</p></div>`;
+    const openBtn = document.createElement("button");
+    openBtn.className = "dap-action-btn dap-secondary-btn";
+    openBtn.textContent = "Open PDF \u2197";
+    openBtn.addEventListener("click", () => window.open(url, "_blank"));
+    fallback.appendChild(openBtn);
     iframe.addEventListener("error", () => {
       iframe.style.display = "none";
-      fallback.style.display = "block";
+      fallback.style.display = "flex";
     });
     container.appendChild(iframe);
     container.appendChild(fallback);
     return container;
   }
+  function createYouTubeViewer(url) {
+    const iframe = document.createElement("iframe");
+    iframe.className = "dap-kb-youtube";
+    iframe.src = url;
+    iframe.setAttribute("frameborder", "0");
+    iframe.setAttribute("allowfullscreen", "true");
+    iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+    return iframe;
+  }
+  function createLinkViewer(url, title, description) {
+    const container = document.createElement("div");
+    container.className = "dap-kb-link-container";
+    const info = document.createElement("div");
+    info.className = "dap-kb-link-info";
+    const h = document.createElement("h4");
+    h.textContent = title || "External Link";
+    info.appendChild(h);
+    if (description) {
+      const p = document.createElement("p");
+      p.textContent = description;
+      info.appendChild(p);
+    }
+    const urlP = document.createElement("p");
+    urlP.style.fontFamily = "'JetBrains Mono', monospace";
+    urlP.style.fontSize = "12px";
+    urlP.textContent = url;
+    info.appendChild(urlP);
+    const btn = document.createElement("button");
+    btn.className = "dap-kb-external-btn";
+    btn.textContent = "Open Link \u2197";
+    btn.addEventListener("click", () => window.open(url, "_blank", "noopener,noreferrer"));
+    info.appendChild(btn);
+    container.appendChild(info);
+    return container;
+  }
+  function createDocumentViewer(url, fileName, type) {
+    const container = document.createElement("div");
+    container.className = "dap-kb-document-container";
+    const info = document.createElement("div");
+    info.className = "dap-kb-document-info";
+    const h = document.createElement("h4");
+    h.textContent = fileName || "Document";
+    info.appendChild(h);
+    if (type) {
+      const typeP = document.createElement("p");
+      typeP.style.fontSize = "12px";
+      typeP.style.color = "var(--dap-text-muted)";
+      typeP.style.fontFamily = "'JetBrains Mono', monospace";
+      typeP.textContent = type.toUpperCase() + " Document";
+      info.appendChild(typeP);
+    }
+    const actions = document.createElement("div");
+    actions.className = "dap-document-actions";
+    actions.style.marginTop = "14px";
+    const openBtn = document.createElement("button");
+    openBtn.className = "dap-action-btn dap-secondary-btn";
+    openBtn.textContent = "Open in New Tab \u2197";
+    openBtn.addEventListener("click", () => window.open(url, "_blank"));
+    const dlBtn = document.createElement("button");
+    dlBtn.className = "dap-action-btn dap-primary-btn";
+    dlBtn.textContent = "\u2B07 Download";
+    dlBtn.addEventListener("click", () => window.downloadFile(url, fileName));
+    actions.appendChild(dlBtn);
+    actions.appendChild(openBtn);
+    info.appendChild(actions);
+    container.appendChild(info);
+    return container;
+  }
   function resolveArticleViewer(articleContent) {
-    console.debug("[DAP] Resolving Article viewer for:", articleContent);
     const url = articleContent.url || articleContent.presignedUrl || "";
     const mimeType = articleContent.mime || articleContent.mimeType || null;
     const fileName = articleContent.fileName || "";
-    console.debug("[DAP] Detected MIME type:", mimeType || "none");
-    console.debug("[DAP] File URL:", url);
-    console.debug("[DAP] File name:", fileName);
     if (mimeType) {
-      if (mimeType === "application/pdf") {
-        console.debug("[DAP] Selected viewer: pdf");
-        return { viewer: "pdf", mimeType };
-      }
-      if (mimeType.includes("word") || mimeType.includes("msword") || mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-        console.debug("[DAP] Selected viewer: document");
+      if (mimeType === "application/pdf") return { viewer: "pdf", mimeType };
+      if (mimeType.includes("word") || mimeType.includes("msword") || mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         return { viewer: "document", mimeType };
-      }
-      if (mimeType.includes("presentation") || mimeType.includes("powerpoint") || mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
-        console.debug("[DAP] Selected viewer: presentation");
+      if (mimeType.includes("presentation") || mimeType.includes("powerpoint") || mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation")
         return { viewer: "presentation", mimeType };
-      }
-      if (mimeType === "text/html" || mimeType.includes("text/")) {
-        console.debug("[DAP] Selected viewer: web");
+      if (mimeType === "text/html" || mimeType.includes("text/"))
         return { viewer: "web", mimeType };
-      }
     }
-    const urlLower = url.toLowerCase();
-    const fileNameLower = fileName.toLowerCase();
-    if (urlLower.includes(".pdf") || fileNameLower.endsWith(".pdf")) {
-      console.debug("[DAP] Selected viewer: pdf (by extension)");
-      return { viewer: "pdf", mimeType: "application/pdf" };
-    }
-    if (urlLower.match(/\.(doc|docx)/) || fileNameLower.match(/\.(doc|docx)$/)) {
-      console.debug("[DAP] Selected viewer: document (by extension)");
+    const ul = url.toLowerCase(), fl = fileName.toLowerCase();
+    if (ul.includes(".pdf") || fl.endsWith(".pdf")) return { viewer: "pdf", mimeType: "application/pdf" };
+    if (ul.match(/\.(doc|docx)/) || fl.match(/\.(doc|docx)$/))
       return { viewer: "document", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
-    }
-    if (urlLower.match(/\.(ppt|pptx)/) || fileNameLower.match(/\.(ppt|pptx)$/)) {
-      console.debug("[DAP] Selected viewer: presentation (by extension)");
+    if (ul.match(/\.(ppt|pptx)/) || fl.match(/\.(ppt|pptx)$/))
       return { viewer: "presentation", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation" };
-    }
-    if (urlLower.match(/\.(html?|htm)/) || fileNameLower.match(/\.(html?|htm)$/)) {
-      console.debug("[DAP] Selected viewer: web (by extension)");
+    if (ul.match(/\.(html?|htm)/) || fl.match(/\.(html?|htm)$/))
       return { viewer: "web", mimeType: "text/html" };
-    }
-    if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
-      if (!urlLower.match(/\.(pdf|doc|docx|ppt|pptx|xls|xlsx|zip|rar)$/)) {
-        console.debug("[DAP] Selected viewer: web (by URL pattern)");
-        return { viewer: "web", mimeType: "text/html" };
-      }
-    }
-    console.debug("[DAP] Selected viewer: fallback");
+    if (url && (url.startsWith("http://") || url.startsWith("https://")) && !ul.match(/\.(pdf|doc|docx|ppt|pptx|xls|xlsx|zip|rar)$/))
+      return { viewer: "web", mimeType: "text/html" };
     return { viewer: "fallback", mimeType };
   }
   function createArticleViewer(articleContent) {
-    console.debug("[DAP] Rendering Article");
     const container = document.createElement("div");
     container.className = "dap-kb-article-viewer";
     const url = articleContent.url || articleContent.presignedUrl || "";
@@ -3775,56 +3957,39 @@ var DAP = (function (exports) {
       container.appendChild(descEl);
     }
     if (content && content.trim()) {
-      console.debug("[DAP] Rendering direct HTML content");
       const contentEl = document.createElement("div");
       contentEl.className = "dap-article-content";
-      contentEl.innerHTML = content;
+      contentEl.innerHTML = sanitizeHtml(content);
       container.appendChild(contentEl);
-      if (url) {
-        const actions = createDocumentActions(url, fileName);
-        container.appendChild(actions);
-      }
+      if (url) container.appendChild(createDocumentActions(url, fileName));
     } else if (url) {
       const loadingEl = document.createElement("div");
       loadingEl.className = "dap-article-loading";
-      loadingEl.innerHTML = `
-      <div class="dap-loading-spinner"></div>
-      <p>Loading article content...</p>
-    `;
+      loadingEl.innerHTML = `<div class="dap-loading-spinner"></div><p>Loading content\u2026</p>`;
       container.appendChild(loadingEl);
       const { viewer, mimeType } = resolveArticleViewer(articleContent);
-      console.debug("[DAP] Selected viewer type:", viewer, "for URL:", url);
       setTimeout(() => {
         loadingEl.remove();
         switch (viewer) {
           case "pdf":
-            const pdfViewer = createInlinePDFViewer(url, fileName);
-            container.appendChild(pdfViewer);
+            container.appendChild(createInlinePDFViewer(url, fileName));
             break;
           case "document":
-            const docViewer = createInlineDocumentViewer(url, fileName, mimeType);
-            container.appendChild(docViewer);
+            container.appendChild(createInlineDocumentViewer(url, fileName, mimeType));
             break;
           case "presentation":
-            const pptViewer = createInlinePresentationViewer(url, fileName, mimeType);
-            container.appendChild(pptViewer);
+            container.appendChild(createInlinePresentationViewer(url, fileName, mimeType));
             break;
           case "web":
-            const webViewer = createWebContentViewer(url, title);
-            container.appendChild(webViewer);
+            container.appendChild(createWebContentViewer(url, title));
             break;
-          case "fallback":
           default:
-            console.debug("[DAP] Fallback activated for URL:", url);
-            const fallbackViewer = createEnhancedFallbackViewer(articleContent, "This document cannot be previewed inline.");
-            container.appendChild(fallbackViewer);
+            container.appendChild(createEnhancedFallbackViewer(articleContent, "This document cannot be previewed inline."));
             break;
         }
       }, 300);
     } else {
-      console.error("[DAP] No content or URL provided for Article");
-      const errorViewer = createEnhancedFallbackViewer(articleContent, "No article content available to display.");
-      container.appendChild(errorViewer);
+      container.appendChild(createEnhancedFallbackViewer(articleContent, "No article content available to display."));
     }
     return container;
   }
@@ -3833,23 +3998,14 @@ var DAP = (function (exports) {
     container.className = "dap-pdf-viewer-container";
     const iframe = document.createElement("iframe");
     iframe.className = "dap-pdf-iframe";
-    iframe.src = url;
-    iframe.style.width = "100%";
-    iframe.style.height = "500px";
-    iframe.style.border = "1px solid #ddd";
+    iframe.src = url.replace(/ /g, "%20");
     iframe.setAttribute("frameborder", "0");
     iframe.onerror = () => {
-      console.warn("[DAP] PDF iframe failed, showing fallback");
       container.innerHTML = "";
-      const fallback = createFallbackViewer(
-        { url, fileName},
-        "PDF preview failed. Please download or open in a new tab."
-      );
-      container.appendChild(fallback);
+      container.appendChild(createFallbackViewer({ url, fileName, title: fileName }, "PDF preview failed."));
     };
     container.appendChild(iframe);
-    const actions = createDocumentActions(url, fileName);
-    container.appendChild(actions);
+    container.appendChild(createDocumentActions(url, fileName));
     return container;
   }
   function createInlineDocumentViewer(url, fileName, mimeType) {
@@ -3859,29 +4015,16 @@ var DAP = (function (exports) {
       const iframe = document.createElement("iframe");
       iframe.className = "dap-document-iframe";
       iframe.src = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`;
-      iframe.style.width = "100%";
-      iframe.style.height = "500px";
-      iframe.style.border = "1px solid #ddd";
       iframe.setAttribute("frameborder", "0");
       iframe.onerror = () => {
-        console.warn("[DAP] Office Online viewer failed, showing fallback");
         container.innerHTML = "";
-        const fallback = createFallbackViewer(
-          { url, fileName},
-          "Document preview is not available. Please download or open in a new tab."
-        );
-        container.appendChild(fallback);
+        container.appendChild(createFallbackViewer({ url, fileName, title: fileName }, "Document preview not available."));
       };
       container.appendChild(iframe);
     } else {
-      const fallback = createFallbackViewer(
-        { url, fileName},
-        "Document preview is not supported for this file type."
-      );
-      container.appendChild(fallback);
+      container.appendChild(createFallbackViewer({ url, fileName, title: fileName }, "Preview not supported for this file type."));
     }
-    const actions = createDocumentActions(url, fileName);
-    container.appendChild(actions);
+    container.appendChild(createDocumentActions(url, fileName));
     return container;
   }
   function createInlinePresentationViewer(url, fileName, mimeType) {
@@ -3891,86 +4034,16 @@ var DAP = (function (exports) {
       const iframe = document.createElement("iframe");
       iframe.className = "dap-presentation-iframe";
       iframe.src = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`;
-      iframe.style.width = "100%";
-      iframe.style.height = "500px";
-      iframe.style.border = "1px solid #ddd";
       iframe.setAttribute("frameborder", "0");
       iframe.onerror = () => {
-        console.warn("[DAP] Office Online presentation viewer failed, showing fallback");
         container.innerHTML = "";
-        const fallback = createFallbackViewer(
-          { url, fileName},
-          "Presentation preview is not available. Please download or open in a new tab."
-        );
-        container.appendChild(fallback);
+        container.appendChild(createFallbackViewer({ url, fileName, title: fileName }, "Presentation preview not available."));
       };
       container.appendChild(iframe);
     } else {
-      const fallback = createFallbackViewer(
-        { url, fileName},
-        "Presentation preview is not supported for this file type."
-      );
-      container.appendChild(fallback);
+      container.appendChild(createFallbackViewer({ url, fileName, title: fileName }, "Preview not supported for this file type."));
     }
-    const actions = createDocumentActions(url, fileName);
-    container.appendChild(actions);
-    return container;
-  }
-  function createFallbackViewer(articleContent, message) {
-    const container = document.createElement("div");
-    container.className = "dap-fallback-viewer";
-    const url = articleContent.url || articleContent.presignedUrl || "";
-    const fileName = articleContent.fileName || "Document";
-    const messageEl = document.createElement("div");
-    messageEl.className = "dap-fallback-message";
-    messageEl.innerHTML = `
-    <p><strong>${message}</strong></p>
-    <p>File: ${fileName}</p>
-  `;
-    container.appendChild(messageEl);
-    const actions = createDocumentActions(url, fileName);
-    container.appendChild(actions);
-    return container;
-  }
-  function createEnhancedFallbackViewer(articleContent, message) {
-    const container = document.createElement("div");
-    container.className = "dap-enhanced-fallback-viewer";
-    const url = articleContent.url || articleContent.presignedUrl || "";
-    const fileName = articleContent.fileName || "Document";
-    const title = articleContent.title || fileName;
-    const fileExtension = fileName.split(".").pop()?.toUpperCase() || "";
-    const iconEl = document.createElement("div");
-    iconEl.className = "dap-fallback-icon";
-    if (fileExtension.includes("PDF")) {
-      iconEl.innerHTML = "\u{1F4C4}";
-    } else if (["DOC", "DOCX"].includes(fileExtension)) {
-      iconEl.innerHTML = "\u{1F4DD}";
-    } else if (["PPT", "PPTX"].includes(fileExtension)) {
-      iconEl.innerHTML = "\u{1F4CA}";
-    } else if (["XLS", "XLSX"].includes(fileExtension)) {
-      iconEl.innerHTML = "\u{1F4C8}";
-    } else {
-      iconEl.innerHTML = "\u{1F4F0}";
-    }
-    container.appendChild(iconEl);
-    const messageEl = document.createElement("div");
-    messageEl.className = "dap-enhanced-fallback-message";
-    messageEl.innerHTML = `
-    <h4>${title}</h4>
-    <p class="dap-fallback-primary">${message}</p>
-    ${fileName !== title ? `<p class="dap-fallback-filename">File: ${fileName}</p>` : ""}
-    ${fileExtension ? `<p class="dap-fallback-type">Type: ${fileExtension} Document</p>` : ""}
-  `;
-    container.appendChild(messageEl);
-    if (url) {
-      const actions = createEnhancedDocumentActions(url, fileName);
-      container.appendChild(actions);
-    } else {
-      const noUrlMessage = document.createElement("p");
-      noUrlMessage.className = "dap-fallback-no-url";
-      noUrlMessage.textContent = "No document link available.";
-      container.appendChild(noUrlMessage);
-    }
+    container.appendChild(createDocumentActions(url, fileName));
     return container;
   }
   function createWebContentViewer(url, title) {
@@ -3981,144 +4054,134 @@ var DAP = (function (exports) {
     iframe.src = url;
     iframe.style.width = "100%";
     iframe.style.height = "600px";
-    iframe.style.border = "1px solid var(--dap-border)";
-    iframe.style.borderRadius = "4px";
     iframe.setAttribute("frameborder", "0");
     iframe.setAttribute("loading", "lazy");
     iframe.onerror = () => {
-      console.warn("[DAP] Web content iframe failed, showing fallback");
       container.innerHTML = "";
-      const fallback = createEnhancedFallbackViewer(
-        { url, title, fileName: title },
-        "Web content could not be loaded. Please open in a new tab."
-      );
-      container.appendChild(fallback);
+      container.appendChild(createEnhancedFallbackViewer({ url, title, fileName: title }, "Web content could not be loaded."));
     };
     container.appendChild(iframe);
     const actions = document.createElement("div");
     actions.className = "dap-web-actions";
-    const openBtn = document.createElement("button");
-    openBtn.className = "dap-action-btn dap-open-btn";
-    openBtn.textContent = "Open in New Tab";
-    openBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      window.open(url, "_blank", "noopener,noreferrer");
-    });
-    actions.appendChild(openBtn);
+    const btn = document.createElement("button");
+    btn.className = "dap-action-btn dap-secondary-btn";
+    btn.textContent = "Open in New Tab \u2197";
+    btn.addEventListener("click", () => window.open(url, "_blank", "noopener,noreferrer"));
+    actions.appendChild(btn);
     container.appendChild(actions);
     return container;
+  }
+  function createFallbackViewer(articleContent, message) {
+    return createEnhancedFallbackViewer(articleContent, message);
+  }
+  function createEnhancedFallbackViewer(articleContent, message) {
+    const container = document.createElement("div");
+    container.className = "dap-enhanced-fallback-viewer";
+    const url = articleContent.url || articleContent.presignedUrl || "";
+    const fileName = articleContent.fileName || "Document";
+    const title = articleContent.title || fileName;
+    const ext = fileName.split(".").pop()?.toUpperCase() || "";
+    const iconMap = {
+      PDF: "\u{1F4C4}",
+      DOC: "\u{1F4DD}",
+      DOCX: "\u{1F4DD}",
+      PPT: "\u{1F4CA}",
+      PPTX: "\u{1F4CA}",
+      XLS: "\u{1F4C8}",
+      XLSX: "\u{1F4C8}"
+    };
+    const icon = document.createElement("div");
+    icon.className = "dap-fallback-icon";
+    icon.textContent = iconMap[ext] || "\u{1F4F0}";
+    container.appendChild(icon);
+    const msg = document.createElement("div");
+    msg.className = "dap-enhanced-fallback-message";
+    msg.innerHTML = sanitizeHtml(`<h4>${title}</h4><p class="dap-fallback-primary">${message}</p>${fileName !== title ? `<p class="dap-fallback-filename">\u{1F4C1} ${fileName}</p>` : ""}${ext ? `<p class="dap-fallback-type">${ext} Document</p>` : ""}`);
+    container.appendChild(msg);
+    if (url) container.appendChild(createEnhancedDocumentActions(url, fileName));
+    return container;
+  }
+  function createDocumentActions(url, fileName) {
+    const actions = document.createElement("div");
+    actions.className = "dap-document-actions";
+    const dlBtn = document.createElement("button");
+    dlBtn.className = "dap-action-btn dap-primary-btn";
+    dlBtn.innerHTML = `<span class="dap-btn-icon">\u2B07</span> Download`;
+    dlBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.downloadFile(url, fileName);
+    });
+    const openBtn = document.createElement("button");
+    openBtn.className = "dap-action-btn dap-secondary-btn";
+    openBtn.innerHTML = `<span class="dap-btn-icon">\u2197</span> Open in New Tab`;
+    openBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.open(url, "_blank", "noopener,noreferrer");
+    });
+    actions.appendChild(dlBtn);
+    actions.appendChild(openBtn);
+    return actions;
   }
   function createEnhancedDocumentActions(url, fileName) {
     const actions = document.createElement("div");
     actions.className = "dap-enhanced-document-actions";
-    const downloadBtn = document.createElement("button");
-    downloadBtn.className = "dap-action-btn dap-download-btn dap-primary-btn";
-    downloadBtn.innerHTML = `
-    <span class="dap-btn-icon">\u2B07\uFE0F</span>
-    <span class="dap-btn-text">Download</span>
-  `;
-    downloadBtn.addEventListener("click", (e) => {
+    const dlBtn = document.createElement("button");
+    dlBtn.className = "dap-action-btn dap-primary-btn";
+    dlBtn.innerHTML = `<span class="dap-btn-icon">\u2B07\uFE0F</span><span class="dap-btn-text">Download</span>`;
+    dlBtn.addEventListener("click", async (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName || "download";
-      link.target = "_blank";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      downloadBtn.innerHTML = `<span class="dap-btn-icon">\u2705</span><span class="dap-btn-text">Downloaded</span>`;
+      const orig = dlBtn.innerHTML;
+      dlBtn.innerHTML = `<span class="dap-btn-icon">\u23F3</span><span class="dap-btn-text">Downloading\u2026</span>`;
+      try {
+        await window.downloadFile(url, fileName);
+        dlBtn.innerHTML = `<span class="dap-btn-icon">\u2705</span><span class="dap-btn-text">Downloaded!</span>`;
+      } catch {
+        dlBtn.innerHTML = orig;
+      }
       setTimeout(() => {
-        downloadBtn.innerHTML = `<span class="dap-btn-icon">\u2B07\uFE0F</span><span class="dap-btn-text">Download</span>`;
-      }, 2e3);
+        dlBtn.innerHTML = orig;
+      }, 2200);
     });
     const openBtn = document.createElement("button");
-    openBtn.className = "dap-action-btn dap-open-btn dap-secondary-btn";
-    openBtn.innerHTML = `
-    <span class="dap-btn-icon">\u{1F517}</span>
-    <span class="dap-btn-text">Open in New Tab</span>
-  `;
+    openBtn.className = "dap-action-btn dap-secondary-btn";
+    openBtn.innerHTML = `<span class="dap-btn-icon">\u{1F517}</span><span class="dap-btn-text">Open in New Tab</span>`;
     openBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
       window.open(url, "_blank", "noopener,noreferrer");
     });
-    actions.appendChild(downloadBtn);
+    actions.appendChild(dlBtn);
     actions.appendChild(openBtn);
     return actions;
   }
-  function createDocumentActions(url, fileName) {
-    const actions = document.createElement("div");
-    actions.className = "dap-document-actions dap-modal-buttons";
-    const downloadBtn = document.createElement("button");
-    downloadBtn.className = "dap-action-btn dap-download-btn dap-modal-button primary";
-    downloadBtn.textContent = "Download";
-    downloadBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName || "download";
-      link.target = "_blank";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    });
-    const openBtn = document.createElement("button");
-    openBtn.className = "dap-action-btn dap-open-btn dap-modal-button secondary";
-    openBtn.textContent = "Open in New Tab";
-    openBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      window.open(url, "_blank", "noopener,noreferrer");
-    });
-    actions.appendChild(downloadBtn);
-    actions.appendChild(openBtn);
-    return actions;
+  function createFileTypeBadge(itemType, fileName) {
+    const badge = document.createElement("div");
+    badge.className = `dap-file-type-badge ${itemType}`;
+    badge.textContent = `${getTypeEmoji(itemType)} ${itemType.toUpperCase()}`;
+    return badge;
   }
-  function createDocumentViewer(url, fileName, type) {
-    const container = document.createElement("div");
-    container.className = "dap-kb-document-container";
-    container.innerHTML = `
-    <div class="dap-kb-document-info">
-      <h4>${fileName || "Document"}</h4>
-      <p>Document type: ${type?.toUpperCase()}</p>
-      <div class="dap-kb-document-actions">
-        <button class="dap-kb-download-btn" onclick="window.open('${url}', '_blank')">
-          Open in New Tab
-        </button>
-        <button class="dap-kb-download-btn" onclick="downloadFile('${url}', '${fileName}')">
-          Download
-        </button>
-      </div>
-    </div>
-  `;
-    return container;
+  function openKBItemInModal(item, kbTitle) {
+    const modalBody = document.querySelector(".dap-modal-body");
+    if (!modalBody) return;
+    if (kbState) {
+      kbState.view = "item";
+      kbState.selectedItem = item;
+      kbState.modalBodyRef = modalBody;
+    } else {
+      return;
+    }
+    modalBody.innerHTML = "";
+    modalBody.appendChild(renderKBItemViewer({ item, kbTitle }));
   }
-  function createYouTubeViewer(url) {
-    const iframe = document.createElement("iframe");
-    iframe.className = "dap-kb-youtube";
-    iframe.src = url;
-    iframe.style.width = "100%";
-    iframe.style.height = "315px";
-    iframe.setAttribute("frameborder", "0");
-    iframe.setAttribute("allowfullscreen", "true");
-    return iframe;
-  }
-  function createLinkViewer(url, title, description) {
-    const container = document.createElement("div");
-    container.className = "dap-kb-link-container";
-    container.innerHTML = `
-    <div class="dap-kb-link-info">
-      <h4>${title || "External Link"}</h4>
-      ${description ? `<p>${description}</p>` : ""}
-      <p><strong>URL:</strong> ${url}</p>
-      <button class="dap-kb-external-btn" onclick="window.open('${url}', '_blank')">
-        Open Link in New Tab
-      </button>
-    </div>
-  `;
-    return container;
+  function goBackToKBList() {
+    if (!kbState || !kbState.modalBodyRef) return;
+    kbState.view = "list";
+    kbState.selectedItem = null;
+    kbState.modalBodyRef.innerHTML = "";
+    kbState.modalBodyRef.appendChild(renderKnowledgeBase({ title: kbState.title, items: kbState.items }));
   }
   function detectContentType(url, fileName) {
     const path = fileName || url;
@@ -4130,1007 +4193,1038 @@ var DAP = (function (exports) {
     if (url.includes("youtube.com") || url.includes("youtu.be")) return "youtube";
     return "link";
   }
-  var kbState = null;
-  function createFileTypeBadge(itemType, fileName) {
-    const badge = document.createElement("div");
-    badge.className = `dap-file-type-badge ${itemType}`;
-    let icon = "";
-    let label = "";
-    switch (itemType) {
-      case "video":
-        icon = "\u{1F3A5}";
-        label = "Video";
-        break;
-      case "image":
-        icon = "\u{1F5BC}\uFE0F";
-        label = "Image";
-        break;
-      case "pdf":
-        icon = "\u{1F4C4}";
-        label = "PDF";
-        break;
-      case "docx":
-      case "doc":
-        icon = "\u{1F4DD}";
-        label = "Document";
-        break;
-      case "pptx":
-      case "ppt":
-        icon = "\u{1F4CA}";
-        label = "Presentation";
-        break;
-      case "xlsx":
-      case "xls":
-        icon = "\u{1F4C8}";
-        label = "Spreadsheet";
-        break;
-      case "article":
-      default:
-        icon = "\u{1F4F0}";
-        label = "Article";
-        break;
+  async function downloadFile(url, fileName) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = fileName || "download";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(blobUrl);
+      }, 100);
+      return true;
+    } catch {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName || "download";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => document.body.removeChild(a), 100);
+      return false;
     }
-    badge.innerHTML = `<span>${icon}</span> ${label}`;
-    return badge;
   }
-  function openKBItemInModal(item, kbTitle) {
-    console.debug("[DAP] Opening KB item in modal:", item);
-    console.debug("[DAP] KB view changed to item");
-    const modalBody = document.querySelector(".dap-modal-body");
-    if (!modalBody) {
-      console.error("[DAP] Could not find modal body for KB item viewing");
-      return;
-    }
-    if (kbState) {
-      kbState.view = "item";
-      kbState.selectedItem = item;
-      kbState.modalBodyRef = modalBody;
-      console.debug("[DAP] KB items count:", kbState.items.length);
-    } else {
-      console.error("[DAP] KB state not initialized when opening item");
-      return;
-    }
-    const viewerContent = {
-      item,
-      kbTitle
-    };
-    modalBody.innerHTML = "";
-    const viewerEl = renderKBItemViewer(viewerContent);
-    modalBody.appendChild(viewerEl);
-  }
-  function goBackToKBList() {
-    console.debug("[DAP] Going back to KB list");
-    console.debug("[DAP] KB view changed to list");
-    if (!kbState || !kbState.modalBodyRef) {
-      console.error("[DAP] Cannot go back: missing KB state or modal reference");
-      return;
-    }
-    console.debug("[DAP] KB items count:", kbState.items.length);
-    kbState.view = "list";
-    kbState.selectedItem = null;
-    const kbContent = {
-      title: kbState.title,
-      items: kbState.items
-    };
-    kbState.modalBodyRef.innerHTML = "";
-    const kbListEl = renderKnowledgeBase(kbContent);
-    kbState.modalBodyRef.appendChild(kbListEl);
+  if (typeof window !== "undefined") {
+    window.downloadFile = downloadFile;
   }
   function ensureStyles2() {
     if (!document.getElementById("dap-modal-style")) {
       const style = document.createElement("style");
       style.id = "dap-modal-style";
-      style.textContent = modalCssText;
+      style.textContent = modalCssText2;
       document.head.appendChild(style);
     }
   }
 
-  // src/index.ts
-  init_tooltip();
+  // src/experiences/tooltip.ts
+  init_registry();
+
+  // src/utils/selectorResolver.ts
+  var STRATEGY_PRIORITY = {
+    data: 0,
+    // Highest priority — most specific, set intentionally by the product team
+    id: 1,
+    // Fast O(1) native lookup, typically unique per page
+    css: 2,
+    // Flexible but can be fragile with deep or generated selectors
+    xpath: 3
+    // Most powerful but slowest; used only as last resort
+  };
+  function parseSelectors(selectorString) {
+    if (typeof selectorString !== "string" || selectorString.trim() === "") {
+      return [];
+    }
+    return selectorString.split("|").map((token) => token.trim()).filter((token) => token.length > 0);
+  }
+  function classifySelectorToken(token) {
+    const lower = token.toLowerCase();
+    if (lower.startsWith("data-")) {
+      const equalsIndex = token.indexOf("=");
+      if (equalsIndex !== -1) {
+        const attrName = token.slice(0, equalsIndex);
+        const attrValue = token.slice(equalsIndex + 1);
+        return {
+          raw: token,
+          strategy: "data",
+          // Build a CSS attribute-equals selector so querySelector can handle it.
+          expression: `[${attrName}="${attrValue}"]`
+        };
+      }
+      return {
+        raw: token,
+        strategy: "data",
+        expression: `[${token}]`
+      };
+    }
+    if (lower.startsWith("id=")) {
+      return {
+        raw: token,
+        strategy: "id",
+        expression: token.slice("id=".length)
+      };
+    }
+    if (lower.startsWith("css=")) {
+      return {
+        raw: token,
+        strategy: "css",
+        expression: token.slice("css=".length)
+      };
+    }
+    if (lower.startsWith("xpath=")) {
+      return {
+        raw: token,
+        strategy: "xpath",
+        expression: token.slice("xpath=".length)
+      };
+    }
+    return { raw: token, strategy: "unknown", expression: token };
+  }
+  function resolveSingleSelector(selector) {
+    if (typeof selector !== "string" || selector.trim() === "") return null;
+    const parsed = classifySelectorToken(selector.trim());
+    switch (parsed.strategy) {
+      // ── data attribute ─────────────────────────────────────────────────────
+      // Priority 1 — most specific; the attribute was intentionally placed on
+      // the element by the product team, making it highly stable across releases.
+      // Format:  "data-iap=search-directory"
+      // Query:   querySelector('[data-iap="search-directory"]')
+      case "data": {
+        try {
+          return document.querySelector(parsed.expression);
+        } catch (e) {
+          console.debug(`[DAP] Selector error (data): "${parsed.expression}" \u2014 invalid attribute expression`, e);
+          return null;
+        }
+      }
+      // ── id ─────────────────────────────────────────────────────────────────
+      // Priority 2 — fast O(1) native lookup; getElementById is the most
+      // efficient DOM query available and is always tried before CSS/XPath.
+      // Format:  "id=searchInput"
+      // Query:   document.getElementById("searchInput")
+      case "id": {
+        try {
+          return document.getElementById(parsed.expression);
+        } catch (e) {
+          console.debug(`[DAP] Selector error (id): "${parsed.expression}" \u2014 invalid id value`, e);
+          return null;
+        }
+      }
+      // ── css ────────────────────────────────────────────────────────────────
+      // Priority 3 — flexible; accepts any valid CSS selector expression.
+      // Format:  "css=#searchInput"  /  "css=.my-class > input[type='text']"
+      // Query:   document.querySelector(<expression after "css=">)
+      case "css": {
+        try {
+          return document.querySelector(parsed.expression);
+        } catch (e) {
+          console.debug(`[DAP] Selector error (css): "${parsed.expression}" \u2014 invalid CSS expression`, e);
+          return null;
+        }
+      }
+      // ── xpath ──────────────────────────────────────────────────────────────
+      // Priority 4 (lowest prefixed) — most powerful but slowest; supports
+      // structural queries and text-content matching that CSS cannot express.
+      // Format:  "xpath=//input[@placeholder='Search']"
+      // Query:   document.evaluate(<expression after "xpath=">, …, FIRST_ORDERED_NODE_TYPE)
+      case "xpath": {
+        try {
+          const result = document.evaluate(
+            parsed.expression,
+            document,
+            null,
+            XPathResult.FIRST_ORDERED_NODE_TYPE,
+            null
+          );
+          return result.singleNodeValue ?? null;
+        } catch (e) {
+          console.debug(`[DAP] Selector error (xpath): "${parsed.expression}" \u2014 invalid XPath expression`, e);
+          return null;
+        }
+      }
+      // ── unknown / legacy ──────────────────────────────────────────────────
+      // Backward-compatibility path for bare selectors that carry no strategy
+      // prefix.  These were authored before the prefixed format was introduced
+      // and must continue to work without any server-side data changes.
+      //
+      // Examples:  "#searchInput"  →  CSS succeeds immediately
+      //            ".my-class"     →  CSS succeeds immediately
+      //            "//input[@id]"  →  CSS fails (invalid), XPath succeeds
+      //
+      // Resolution order for bare selectors:
+      //   1. Try as CSS  — covers most common legacy cases (#id, .class, tag)
+      //   2. Try as XPath — covers legacy XPath strings that begin with "//"
+      default: {
+        try {
+          const cssEl = document.querySelector(parsed.expression);
+          if (cssEl) return cssEl;
+        } catch (e) {
+          console.debug(`[DAP] Selector bare CSS attempt failed: "${parsed.expression}" \u2014 trying XPath fallback`, e);
+        }
+        try {
+          const result = document.evaluate(
+            parsed.expression,
+            document,
+            null,
+            XPathResult.FIRST_ORDERED_NODE_TYPE,
+            null
+          );
+          return result.singleNodeValue ?? null;
+        } catch (e) {
+          console.debug(`[DAP] Selector bare XPath attempt failed: "${parsed.expression}" \u2014 no match for bare selector`, e);
+          return null;
+        }
+      }
+    }
+  }
+  var selectorCache = {};
+  function evictSelectorCacheEntry(stepId) {
+    delete selectorCache[stepId];
+  }
+  var evictCacheEntry = evictSelectorCacheEntry;
+  function clearSelectorCache() {
+    const keys = Object.keys(selectorCache);
+    for (const key of keys) {
+      delete selectorCache[key];
+    }
+  }
+  function resolveSelectorWithCache(stepId, selectorString) {
+    if (typeof stepId !== "string" || stepId.trim() === "") return null;
+    if (typeof selectorString !== "string" || selectorString.trim() === "") return null;
+    const cachedToken = selectorCache[stepId];
+    if (cachedToken !== void 0) {
+      const el = resolveSingleSelector(cachedToken);
+      if (el && el.isConnected) {
+        console.debug(`[DAP] Selector resolved: "${cachedToken}" (cache hit, step "${stepId}")`, el);
+        return el;
+      }
+      console.debug(`[DAP] Selector cache evicted: step "${stepId}", token "${cachedToken}" \u2014 element detached or removed from DOM`);
+      evictCacheEntry(stepId);
+    } else {
+      console.debug(`[DAP] Selector cache miss: step "${stepId}" \u2014 running full priority resolution on "${selectorString}"`);
+    }
+    const tokens = parseSelectors(selectorString);
+    if (tokens.length === 0) return null;
+    const parsed = tokens.map((t) => {
+      const lower = t.toLowerCase();
+      if (lower.startsWith("data-")) {
+        const eq = t.indexOf("=");
+        const expression = eq !== -1 ? `[${t.slice(0, eq)}="${t.slice(eq + 1)}"]` : `[${t}]`;
+        return { raw: t, strategy: "data", expression };
+      }
+      if (lower.startsWith("id=")) return { raw: t, strategy: "id", expression: t.slice(3) };
+      if (lower.startsWith("css=")) return { raw: t, strategy: "css", expression: t.slice(4) };
+      if (lower.startsWith("xpath=")) return { raw: t, strategy: "xpath", expression: t.slice(6) };
+      return { raw: t, strategy: "unknown", expression: t };
+    });
+    const buckets = [[], [], [], [], []];
+    for (const p of parsed) {
+      const idx = p.strategy === "unknown" ? 4 : STRATEGY_PRIORITY[p.strategy];
+      buckets[idx].push(p);
+    }
+    for (const bucket of buckets) {
+      for (const p of bucket) {
+        const el = resolveSingleSelector(p.raw);
+        if (el && el.isConnected) {
+          selectorCache[stepId] = p.raw;
+          console.debug(`[DAP] Selector resolved: "${p.raw}" (strategy: ${p.strategy}, step "${stepId}") \u2014 cached for future lookups`, el);
+          return el;
+        }
+      }
+    }
+    console.debug(`[DAP] Selector not found: step "${stepId}" \u2014 no element matched "${selectorString}"`);
+    return null;
+  }
+  function resolveSelectorWithPriority(selectorString) {
+    if (typeof selectorString !== "string" || selectorString.trim() === "") return null;
+    const tokens = parseSelectors(selectorString);
+    if (tokens.length === 0) return null;
+    const parsed = tokens.map(classifySelectorToken);
+    const buckets = [[], [], [], [], []];
+    for (const p of parsed) {
+      if (p.strategy === "unknown") {
+        buckets[4].push(p);
+      } else {
+        buckets[STRATEGY_PRIORITY[p.strategy]].push(p);
+      }
+    }
+    for (const bucket of buckets) {
+      for (const p of bucket) {
+        const el = resolveSingleSelector(p.raw);
+        if (el) {
+          console.debug(`[DAP] Selector resolved: "${p.raw}" (strategy: ${p.strategy})`, el);
+          return el;
+        }
+      }
+    }
+    console.debug(`[DAP] Selector not found: no element matched "${selectorString}"`);
+    return null;
+  }
+
+  // src/experiences/tooltip.ts
+  function registerTooltip() {
+    register("tooltip", renderTooltip);
+  }
+  async function renderTooltip(flow) {
+    const { payload, id } = flow;
+    console.debug("[DAP] Tooltip initialized", { id, selector: payload.targetSelector });
+    if (!payload.targetSelector || !payload.text) {
+      console.error("[DAP] Tooltip missing required fields", {
+        targetSelector: payload.targetSelector,
+        hasText: !!payload.text
+      });
+      payload._completionTracker?.onComplete?.();
+      return;
+    }
+    const target = await waitForTarget(payload.targetSelector, 5e3);
+    if (!target) {
+      console.warn("[DAP] Tooltip target not found", { selector: payload.targetSelector });
+      payload._completionTracker?.onComplete?.();
+      return;
+    }
+    console.debug("[DAP] Tooltip target resolved", { selector: payload.targetSelector });
+    const tooltip = new DAPTooltip(id, target, payload);
+    tooltip.initialize();
+  }
+  var DAPTooltip = class {
+    constructor(id, target, payload) {
+      this.container = null;
+      this.overlay = null;
+      this.isVisible = false;
+      this._completed = false;
+      this.listeners = [];
+      this.targetObserver = null;
+      this.id = id;
+      this.target = target;
+      this.payload = payload;
+      this.trigger = this.normalizeTrigger(payload.trigger);
+    }
+    initialize() {
+      this.setupTrigger();
+      this.setupGlobalListeners();
+      this.setupTargetObserver();
+    }
+    normalizeTrigger(trigger) {
+      if (typeof trigger === "string" && ["hover", "click", "focus", "pageload"].includes(trigger)) {
+        return trigger;
+      }
+      return "hover";
+    }
+    setupTrigger() {
+      switch (this.trigger) {
+        case "hover":
+          this.setupHoverTrigger();
+          break;
+        case "click":
+          this.setupClickTrigger();
+          break;
+        case "focus":
+          this.setupFocusTrigger();
+          break;
+        case "pageload":
+          this.show();
+          break;
+      }
+    }
+    setupHoverTrigger() {
+      this.show();
+      const onMouseEnter = () => this.show();
+      const onMouseLeave = (e) => {
+        const related = e.relatedTarget;
+        if (related && this.container?.contains(related)) return;
+        this.hide();
+      };
+      this.target.addEventListener("mouseenter", onMouseEnter);
+      this.target.addEventListener("mouseleave", onMouseLeave);
+      this.listeners.push(
+        () => this.target.removeEventListener("mouseenter", onMouseEnter),
+        () => this.target.removeEventListener("mouseleave", onMouseLeave)
+      );
+    }
+    setupClickTrigger() {
+      this.show();
+      const onDocumentClick = (e) => {
+        const target = e.target;
+        if (!this.container?.contains(target) && !this.target.contains(target)) {
+          this.hide();
+        }
+      };
+      document.addEventListener("click", onDocumentClick, true);
+      this.listeners.push(
+        () => document.removeEventListener("click", onDocumentClick, true)
+      );
+    }
+    setupFocusTrigger() {
+      this.show();
+      const onFocus = () => this.show();
+      const onBlur = () => this.hide();
+      this.target.addEventListener("focus", onFocus);
+      this.target.addEventListener("blur", onBlur);
+      this.listeners.push(
+        () => this.target.removeEventListener("focus", onFocus),
+        () => this.target.removeEventListener("blur", onBlur)
+      );
+    }
+    setupGlobalListeners() {
+      const onKeyDown = (e) => {
+        if (e.key === "Escape" && this.isVisible) {
+          this.hide();
+        }
+      };
+      const onScroll = () => {
+        if (this.isVisible) {
+          if (!this.isTargetInViewport()) {
+            this.hide();
+          } else {
+            this.position();
+          }
+        }
+      };
+      const onResize = () => {
+        if (this.isVisible) {
+          this.position();
+        }
+      };
+      const onVisibilityChange = () => {
+        if (document.hidden && this.isVisible) {
+          this.hide();
+        }
+      };
+      document.addEventListener("keydown", onKeyDown);
+      window.addEventListener("scroll", onScroll, true);
+      window.addEventListener("resize", onResize);
+      document.addEventListener("visibilitychange", onVisibilityChange);
+      this.listeners.push(
+        () => document.removeEventListener("keydown", onKeyDown),
+        () => window.removeEventListener("scroll", onScroll, true),
+        () => window.removeEventListener("resize", onResize),
+        () => document.removeEventListener("visibilitychange", onVisibilityChange)
+      );
+    }
+    setupTargetObserver() {
+      this.targetObserver = new MutationObserver(() => {
+        if (!document.contains(this.target)) {
+          this.destroy();
+        }
+      });
+      this.targetObserver.observe(document.documentElement, {
+        childList: true,
+        subtree: true
+      });
+    }
+    show() {
+      if (this._completed || this.isVisible) return;
+      console.debug("[DAP] Tooltip shown", { id: this.id });
+      this.createTooltip();
+      this.position();
+      this.isVisible = true;
+      requestAnimationFrame(() => {
+        if (this.container) {
+          this.container.classList.add("dap-tooltip-visible");
+        }
+      });
+    }
+    hide() {
+      if (!this.isVisible) return;
+      console.debug("[DAP] Tooltip dismissed", { id: this.id });
+      if (this.payload._completionTracker?.onComplete) {
+        console.debug("[DAP] Completing tooltip flow", { id: this.id });
+        this.payload._completionTracker.onComplete();
+      }
+      this._completed = true;
+      this.listeners.forEach((cleanup) => cleanup());
+      this.listeners = [];
+      if (this.targetObserver) {
+        this.targetObserver.disconnect();
+        this.targetObserver = null;
+      }
+      if (this.container) {
+        this.container.style.animation = "dap-tooltip-exit 0.2s cubic-bezier(0.4, 0.0, 0.2, 1) forwards";
+        setTimeout(() => {
+          this.removeTooltip();
+        }, 200);
+      } else {
+        this.removeTooltip();
+      }
+      this.isVisible = false;
+    }
+    createTooltip() {
+      this.overlay = this.getOrCreateOverlay();
+      this.container = document.createElement("div");
+      this.container.className = "dap-tooltip";
+      this.container.id = `dap-tooltip-${this.id}`;
+      this.container.setAttribute("role", "tooltip");
+      this.container.setAttribute("aria-live", "polite");
+      const content = document.createElement("div");
+      content.className = "dap-tooltip-content";
+      content.textContent = this.payload.text || "";
+      const arrow = document.createElement("div");
+      arrow.className = "dap-tooltip-arrow";
+      this.container.appendChild(content);
+      this.container.appendChild(arrow);
+      if (this.trigger === "hover") {
+        const onTooltipMouseLeave = () => this.hide();
+        this.container.addEventListener("mouseleave", onTooltipMouseLeave);
+        this.listeners.push(
+          () => this.container?.removeEventListener("mouseleave", onTooltipMouseLeave)
+        );
+      }
+      this.overlay.appendChild(this.container);
+      const tooltipId = this.container.id;
+      const prevDesc = this.target.getAttribute("aria-describedby") || "";
+      this.target.setAttribute("aria-describedby", [prevDesc, tooltipId].filter(Boolean).join(" ").trim());
+    }
+    removeTooltip() {
+      if (this.container) {
+        const tooltipId = this.container.id;
+        const currentDesc = this.target.getAttribute("aria-describedby") || "";
+        const newDesc = currentDesc.split(/\s+/).filter(Boolean).filter((id) => id !== tooltipId).join(" ");
+        if (newDesc) {
+          this.target.setAttribute("aria-describedby", newDesc);
+        } else {
+          this.target.removeAttribute("aria-describedby");
+        }
+        this.container.remove();
+        this.container = null;
+      }
+    }
+    position() {
+      if (!this.container) return;
+      const targetRect = this.target.getBoundingClientRect();
+      const placement = this.normalizePlacement(this.payload.placement);
+      this.container.style.position = "fixed";
+      this.container.style.visibility = "hidden";
+      this.container.style.top = "0px";
+      this.container.style.left = "0px";
+      this.container.style.display = "block";
+      const tooltipRect = this.container.getBoundingClientRect();
+      const gap = 8;
+      const viewport = {
+        width: window.innerWidth,
+        height: window.innerHeight
+      };
+      const position = this.calculatePosition(targetRect, tooltipRect, placement, gap, viewport);
+      this.container.style.top = `${position.top}px`;
+      this.container.style.left = `${position.left}px`;
+      this.container.setAttribute("data-placement", position.placement);
+      this.container.style.visibility = "visible";
+    }
+    normalizePlacement(placement) {
+      if (typeof placement === "string" && ["top", "right", "bottom", "left"].includes(placement)) {
+        return placement;
+      }
+      return "top";
+    }
+    calculatePosition(targetRect, tooltipRect, preferredPlacement, gap, viewport) {
+      const positions = {
+        top: {
+          top: targetRect.top - tooltipRect.height - gap,
+          left: targetRect.left + (targetRect.width - tooltipRect.width) / 2
+        },
+        right: {
+          top: targetRect.top + (targetRect.height - tooltipRect.height) / 2,
+          left: targetRect.right + gap
+        },
+        bottom: {
+          top: targetRect.bottom + gap,
+          left: targetRect.left + (targetRect.width - tooltipRect.width) / 2
+        },
+        left: {
+          top: targetRect.top + (targetRect.height - tooltipRect.height) / 2,
+          left: targetRect.left - tooltipRect.width - gap
+        }
+      };
+      const fits = (pos) => {
+        return pos.top >= 0 && pos.left >= 0 && pos.top + tooltipRect.height <= viewport.height && pos.left + tooltipRect.width <= viewport.width;
+      };
+      let finalPosition = positions[preferredPlacement];
+      let finalPlacement = preferredPlacement;
+      if (!fits(finalPosition)) {
+        const alternatives = ["top", "right", "bottom", "left"];
+        for (const alt of alternatives) {
+          if (alt !== preferredPlacement) {
+            const altPos = positions[alt];
+            if (fits(altPos)) {
+              finalPosition = altPos;
+              finalPlacement = alt;
+              break;
+            }
+          }
+        }
+      }
+      const margin = 4;
+      finalPosition.top = Math.max(margin, Math.min(finalPosition.top, viewport.height - tooltipRect.height - margin));
+      finalPosition.left = Math.max(margin, Math.min(finalPosition.left, viewport.width - tooltipRect.width - margin));
+      return { ...finalPosition, placement: finalPlacement };
+    }
+    isTargetInViewport() {
+      const rect = this.target.getBoundingClientRect();
+      return rect.top >= 0 && rect.left >= 0 && rect.bottom <= window.innerHeight && rect.right <= window.innerWidth;
+    }
+    getOrCreateOverlay() {
+      let overlay = document.getElementById("dap-tooltip-overlay");
+      if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.id = "dap-tooltip-overlay";
+        overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+        z-index: 2147483640;
+      `;
+        this.injectCSS();
+        document.body.appendChild(overlay);
+      }
+      return overlay;
+    }
+    injectCSS() {
+      if (document.getElementById("dap-tooltip-styles")) return;
+      const style = document.createElement("style");
+      style.id = "dap-tooltip-styles";
+      style.textContent = `
+      /* Font stack: system fonts are used; no external font requests are made. */
+
+      :root {
+        --dap-tooltip-bg: rgba(18, 18, 30, 0.95);
+        --dap-tooltip-border: rgba(255, 255, 255, 0.08);
+        --dap-tooltip-accent: #7c6aff;
+        --dap-tooltip-text: #f0eeff;
+        --dap-tooltip-text-muted: rgba(200, 195, 230, 0.65);
+        --dap-tooltip-radius: 14px;
+        --dap-tooltip-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 20px rgba(124, 106, 255, 0.15);
+        --dap-tooltip-transition: cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      .dap-tooltip {
+        position: fixed;
+        background: var(--dap-tooltip-bg);
+        color: var(--dap-tooltip-text);
+        padding: 14px 18px;
+        border-radius: var(--dap-tooltip-radius);
+        font-family: 'Sora', sans-serif;
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 1.6;
+        max-width: 320px;
+        min-width: 180px;
+        word-wrap: break-word;
+        z-index: 2147483641;
+        pointer-events: auto;
+        box-shadow: var(--dap-tooltip-shadow);
+        border: 1px solid var(--dap-tooltip-border);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        opacity: 0;
+        transform: scale(0.9) translateY(8px);
+        transition: opacity 0.3s var(--dap-tooltip-transition), transform 0.4s var(--dap-tooltip-transition);
+        animation: dap-tooltip-enter 0.4s var(--dap-tooltip-transition) forwards;
+      }
+
+      /* Accent glow line */
+      .dap-tooltip::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 15%;
+        right: 15%;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--dap-tooltip-accent), transparent);
+        opacity: 0.6;
+      }
+
+      .dap-tooltip.dap-tooltip-visible {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+
+      .dap-tooltip-content {
+        margin: 0;
+        color: var(--dap-tooltip-text);
+        letter-spacing: 0.01em;
+      }
+
+      .dap-tooltip-content strong {
+        font-weight: 600;
+        color: var(--dap-tooltip-accent);
+      }
+
+      .dap-tooltip-content p {
+        margin: 0;
+      }
+
+      .dap-tooltip-arrow {
+        position: absolute;
+        width: 0;
+        height: 0;
+        z-index: -1;
+      }
+
+      /* Arrow positioning and styling using border-trick */
+      .dap-tooltip[data-placement="top"] .dap-tooltip-arrow {
+        bottom: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-left: 8px solid transparent;
+        border-right: 8px solid transparent;
+        border-top: 8px solid var(--dap-tooltip-bg);
+      }
+
+      .dap-tooltip[data-placement="right"] .dap-tooltip-arrow {
+        left: -6px;
+        top: 50%;
+        transform: translateY(-50%);
+        border-top: 8px solid transparent;
+        border-bottom: 8px solid transparent;
+        border-right: 8px solid var(--dap-tooltip-bg);
+      }
+
+      .dap-tooltip[data-placement="bottom"] .dap-tooltip-arrow {
+        top: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-left: 8px solid transparent;
+        border-right: 8px solid transparent;
+        border-bottom: 8px solid var(--dap-tooltip-bg);
+      }
+
+      .dap-tooltip[data-placement="left"] .dap-tooltip-arrow {
+        right: -6px;
+        top: 50%;
+        transform: translateY(-50%);
+        border-top: 8px solid transparent;
+        border-bottom: 8px solid transparent;
+        border-left: 8px solid var(--dap-tooltip-bg);
+      }
+
+      @keyframes dap-tooltip-enter {
+        from {
+          opacity: 0;
+          transform: scale(0.85) translateY(12px);
+          filter: blur(4px);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1) translateY(0);
+          filter: blur(0);
+        }
+      }
+
+      @keyframes dap-tooltip-exit {
+        from {
+          opacity: 1;
+          transform: scale(1) translateY(0);
+        }
+        to {
+          opacity: 0;
+          transform: scale(0.92) translateY(-8px);
+          filter: blur(3px);
+        }
+      }
+
+      /* Noise texture overlay */
+      .dap-tooltip::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+        opacity: 0.4;
+        border-radius: var(--dap-tooltip-radius);
+      }
+
+      /* Mobile adjustment */
+      @media (max-width: 480px) {
+        .dap-tooltip {
+          max-width: 280px;
+          padding: 12px 16px;
+        }
+      }
+
+      /* Reduced motion */
+      @media (prefers-reduced-motion: reduce) {
+        .dap-tooltip {
+          animation: none;
+          transition: opacity 0.2s ease;
+        }
+      }
+    `;
+      document.head.appendChild(style);
+    }
+    destroy() {
+      console.debug("[DAP] Tooltip destroyed", { id: this.id });
+      this.hide();
+      this.listeners.forEach((cleanup) => cleanup());
+      this.listeners = [];
+      if (this.targetObserver) {
+        this.targetObserver.disconnect();
+        this.targetObserver = null;
+      }
+    }
+  };
+  async function waitForTarget(selector, timeout) {
+    const startTime = Date.now();
+    let element = resolveSelectorWithPriority(selector);
+    if (element) return element;
+    return new Promise((resolve) => {
+      const observer = new MutationObserver(() => {
+        element = resolveSelectorWithPriority(selector);
+        if (element) {
+          observer.disconnect();
+          resolve(element);
+          return;
+        }
+        if (Date.now() - startTime > timeout) {
+          observer.disconnect();
+          resolve(null);
+        }
+      });
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true
+      });
+      setTimeout(() => {
+        observer.disconnect();
+        resolve(resolveSelectorWithPriority(selector));
+      }, timeout);
+    });
+  }
 
   // src/experiences/survey.ts
   init_registry();
 
   // src/styles/survey.css.ts
   var surveyCssText = `
-/* Survey specific styles */
+/* Font stack: system fonts are used; no external font requests are made. */
+
+/* --- Overlay --- */
 .dap-modal-wrap {
   position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  background-color: rgba(15, 23, 42, 0.6); /* Improved overlay color */
+  inset: 0;
+  background: rgba(4, 4, 12, 0.65);
   z-index: 2147483647;
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: auto;
-  padding: 24px; /* Better padding */
-  box-sizing: border-box;
-  width: 100vw;
-  height: 100vh;
-  margin: 0;
-  animation: fadeIn 0.3s ease-out;
-  backdrop-filter: blur(4px); /* Enhanced blur effect */
+  padding: 24px;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  animation: dapFadeIn 0.3s ease both;
 }
 
-@keyframes fadeIn {
+@keyframes dapFadeIn {
   from { opacity: 0; }
-  to { opacity: 1; }
+  to   { opacity: 1; }
 }
 
-@keyframes slideUp {
-  from { opacity: 0; transform: translate(-50%, -40%); }
-  to { opacity: 1; transform: translate(-50%, -50%); }
-}
-
+/* --- Container --- */
 .dap-survey-modal {
-  position: absolute;
-  max-width: 680px;
+  background: rgba(18, 18, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.7), 0 0 40px rgba(124, 106, 255, 0.12);
+  width: 100%;
+  max-width: 600px;
   max-height: 85vh;
-  width: 92%;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: white;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  border-radius: 12px;
-  z-index: 2147483648;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: #333;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  animation: slideUp 0.35s ease-out;
+  overflow: hidden;
+  font-family: 'Sora', sans-serif;
+  color: #f0eeff;
+  animation: dapModalIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-/* Content-adaptive sizing for survey modals */
-.dap-survey-modal.dap-size-small {
-  max-width: min(92vw, 450px);
-  max-height: min(85vh, 500px);
+@keyframes dapModalIn {
+  from { opacity: 0; transform: scale(0.95) translateY(20px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-.dap-survey-modal.dap-size-medium {
-  max-width: min(92vw, 680px);
-  max-height: min(85vh, 650px);
-}
-
-.dap-survey-modal.dap-size-large {
-  max-width: min(92vw, 950px);
-  max-height: min(85vh, 800px);
-}
-
-/* Improved scrollable handling */
-.dap-survey-modal.dap-scrollable .dap-survey-body {
-  overflow-y: auto;
-  overflow-x: auto;
-}
-
-.dap-survey-modal .dap-survey-body {
-  overflow: visible; /* Default: no scroll unless needed */
-}
-
+/* --- Body --- */
 .dap-survey-body {
-  max-height: calc(85vh - 140px);
-  overflow: visible; /* Let adaptive sizing handle overflow */
   padding: 32px;
   flex: 1;
+  overflow-y: auto;
+  scroll-behavior: smooth;
 }
 
-.dap-survey-content {
-  display: flex;
-  flex-direction: column;
-  gap: 24px; /* Increased gap for better spacing */
-  width: 100%;
+.dap-survey-body::-webkit-scrollbar {
+  width: 5px;
+}
+.dap-survey-body::-webkit-scrollbar-thumb {
+  background: rgba(124, 106, 255, 0.3);
+  border-radius: 3px;
 }
 
-/* Two column layout for larger screens */
-@media (min-width: 650px) {
-  .dap-survey-content {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 24px; /* Consistent gap in grid layout */
-  }
-  
-  /* Certain question types should still span full width */
-  .dap-survey-question.dap-full-width {
-    grid-column: 1 / -1;
-  }
-}
-
-.dap-header-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  background-color: #fff;
-  border-top-left-radius: 12px;
-  border-top-right-radius: 12px;
-}
-
-.dap-modal-header {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 600;
-  color: #111;
-}
-
-/* Progress bar similar to React version */
-.dap-progress-container {
-  height: 4px;
-  width: 100%;
-  background-color: #f0f2f5;
-  border-radius: 2px;
-  overflow: hidden;
-  margin-top: 12px;
-}
-
-.dap-progress-bar {
-  height: 100%;
-  background-color: #4361ee;
-  transition: width 0.3s ease;
-}
-
-.dap-progress-text {
-  font-size: 12px;
-  color: #666;
-  text-align: right;
-  margin-top: 4px;
-}
-
-.dap-close {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  color: #666;
-  font-size: 22px;
-  line-height: 1;
-  border-radius: 9999px;
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.dap-close:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-  color: #333;
-}
-
-.dap-close:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.2);
-}
-  border-radius: 50%;
-  transition: all 0.2s;
-  width: 32px;
-  height: 32px;
-}
-
-.dap-close:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-  color: #333;
-}
-
-.dap-survey-intro {
-  margin: 0;
-  padding: 24px 24px 0;
-  line-height: 1.5;
-  color: #555;
-  font-size: 15px;
-}
-
-.dap-survey-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  width: 100%;
-  padding: 20px 24px 24px;
-}
-
-.dap-survey-error {
-  background-color: #fff0f0;
-  color: #e53935;
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin-bottom: 16px;
-  font-weight: 500;
-  font-size: 14px;
-  border-left: 3px solid #e53935;
-}
-
+/* --- Questions --- */
 .dap-survey-question {
-  padding: 20px;
-  width: 100%;
-  border: 1px solid #eaeef2;
-  border-radius: 12px;
-  margin-bottom: 16px;
-  background-color: white;
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  margin-bottom: 24px;
+  background: rgba(255, 255, 255, 0.02);
+  transition: all 0.3s ease;
 }
 
 .dap-survey-question:hover {
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
-  border-color: #dbe1e8;
-}
-
-.dap-survey-question:last-child {
-  margin-bottom: 0;
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(124, 106, 255, 0.2);
 }
 
 .dap-question-label {
   display: block;
   font-weight: 600;
-  margin-bottom: 14px;
-  color: #222;
+  margin-bottom: 20px;
+  color: #f0eeff;
   font-size: 16px;
-  line-height: 1.4;
 }
 
-.dap-question-input {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-}
-
-/* Radio and Checkbox */
-.dap-radio-wrapper,
-.dap-checkbox-wrapper {
+/* --- Inputs --- */
+.dap-radio-wrapper, .dap-checkbox-wrapper {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 4px 0;
-  padding: 10px 14px;
-  border-radius: 6px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  margin-bottom: 10px;
+  cursor: pointer;
   transition: all 0.2s ease;
-  border: 1px solid #eaeef2;
-  background-color: #fafbfd;
 }
 
-.dap-radio-wrapper:hover,
-.dap-checkbox-wrapper:hover {
-  background-color: #f0f4f8;
-  border-color: #dbe1e8;
-  transform: translateY(-1px);
+.dap-radio-wrapper:hover, .dap-checkbox-wrapper:hover {
+  background: rgba(124, 106, 255, 0.1);
+  border-color: rgba(124, 106, 255, 0.3);
 }
 
-.dap-radio-wrapper input,
-.dap-checkbox-wrapper input {
-  margin: 0;
+.dap-radio-wrapper input, .dap-checkbox-wrapper input {
+  accent-color: #7c6aff;
   width: 18px;
   height: 18px;
-  accent-color: #4361ee;
 }
 
-.dap-radio-wrapper label,
-.dap-checkbox-wrapper label {
+.dap-radio-wrapper label, .dap-checkbox-wrapper label {
+  color: rgba(200, 195, 230, 0.82);
   cursor: pointer;
-  font-size: 15px;
-  color: #333;
   flex: 1;
-  font-weight: 500;
+  font-size: 14px;
 }
 
-/* Text inputs */
 .dap-question-input input[type="text"],
 .dap-question-input textarea,
 .dap-question-input select {
-  padding: 12px 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  font-family: inherit;
-  font-size: 15px;
   width: 100%;
-  box-sizing: border-box;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #f0eeff;
+  font-family: inherit;
+  font-size: 14px;
   transition: all 0.2s ease;
-  background-color: white;
-  color: #333;
-  line-height: 1.5;
 }
 
-.dap-question-input input[type="text"]:focus,
+.dap-question-input input:focus,
 .dap-question-input textarea:focus,
 .dap-question-input select:focus {
   outline: none;
-  border-color: #4361ee;
-  box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.15);
+  border-color: #7c6aff;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 4px rgba(124, 106, 255, 0.15);
 }
 
-.dap-question-input textarea {
-  min-height: 120px;
-  resize: vertical;
-  line-height: 1.6;
-}
-}
-
-.dap-question-input textarea {
-  resize: vertical;
-  min-height: 90px;
-  line-height: 1.5;
-}
-
-/* Opinion Scale */
-.dap-scale-container {
+/* --- Scale / NPS --- */
+.dap-scale-options, .dap-nps-scale {
   display: flex;
-  flex-direction: column;
-  width: 100%;
-  gap: 12px;
-}
-
-.dap-scale-options {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.dap-scale-option {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.dap-scale-option input {
-  margin: 0;
-  width: 18px;
-  height: 18px;
-  accent-color: #4361ee;
-}
-
-.dap-scale-option label {
-  font-size: 14px;
-  text-align: center;
-  font-weight: 500;
-}
-
-.dap-scale-label {
-  font-size: 14px;
-  color: #555;
-  max-width: 120px;
-  font-weight: 500;
-}
-
-/* Opinion Scale Choice (Face Scale) */
-.dap-scale-faces {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-  margin-top: 12px;
-}
-
-.dap-face-option {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   gap: 8px;
 }
 
-.dap-face-radio {
-  display: none;
+.dap-scale-option, .dap-nps-option {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
-.dap-face-label {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
+.dap-scale-option label, .dap-nps-option label {
   height: 48px;
-  font-size: 28px;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background-color: #f0f4f8;
-  border: 2px solid transparent;
-}
-
-.dap-face-radio:checked + .dap-face-label {
-  background-color: #e0e7ff;
-  border-color: #4361ee;
-  transform: scale(1.1);
-}
-
-.dap-face-label:hover {
-  background-color: #e0e7ff;
-  transform: translateY(-2px);
-}
-
-/* NPS Scale */
-.dap-nps-container {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  gap: 12px;
-}
-
-.dap-nps-scale {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.dap-nps-option {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.dap-nps-option input {
-  margin: 0;
-  width: 18px;
-  height: 18px;
-  accent-color: #4361ee;
-}
-
-.dap-nps-option label {
-  font-size: 14px;
-  text-align: center;
-  font-weight: 500;
-  cursor: pointer;
-  transition: color 0.2s ease;
-}
-
-.dap-nps-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 14px;
-  color: #555;
-  width: 100%;
-  margin-top: 4px;
-  font-weight: 500;
-}
-
-.dap-nps-label-min {
-  text-align: left;
-}
-
-.dap-nps-label-max {
-  text-align: right;
-}
-
-/* NPS Options */
-.dap-nps-options {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-}
-
-.dap-nps-category {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px;
-  background-color: #f7f9fc;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  transition: all 0.2s ease;
-}
-
-.dap-nps-category:hover {
-  background-color: #edf2fc;
-  transform: translateY(-2px);
-}
-
-.dap-nps-category input {
-  accent-color: #4361ee;
-  width: 18px;
-  height: 18px;
-}
-
-.dap-nps-category label {
-  font-weight: 500;
-  font-size: 15px;
-  cursor: pointer;
-}
-
-/* Star Rating */
-.dap-star-container {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 4px 0;
-  transition: all 0.2s ease;
-  background: transparent;
-  border: none;
-}
-
-/* Star Rating Styles */
-.dap-rating-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.dap-star-rating {
-  display: inline-flex;
-  direction: rtl; /* This reverses the order for the hover effect */
-  unicode-bidi: bidi-override;
   justify-content: center;
-  gap: 0;
-  margin: 5px 0;
-}
-
-/* Clear button */
-.dap-clear-rating {
-  font-size: 13px;
-  background: transparent;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 4px 8px;
-  color: #555;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  height: fit-content;
-}
-
-.dap-clear-rating:hover {
-  background-color: #f5f5f5;
-  border-color: #ccc;
-  color: #333;
-}
-
-/* Rating text only used in StarChoice */
-.dap-rating-text {
   font-size: 14px;
-  color: #777;
-  margin-top: 8px;
-  text-align: center;
-  min-height: 20px;
-}
-
-.dap-rating-selected {
   font-weight: 500;
-  color: #4361ee;
-}
-
-/* Hide radio buttons */
-.dap-star-input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-/* Star labels */
-.dap-star-label {
-  font-size: 30px;
-  color: #e0e0e0;
-  cursor: pointer;
-  display: inline-block;
-  transition: color 0.15s ease;
-  padding: 0 2px;
-}
-
-/* Create star shape */
-.dap-star-label::before {
-  content: "\u2605";
-  display: block;
-}
-
-/* Unselected color */
-.dap-star-rating .dap-star-label {
-  color: #e0e0e0;
-}
-
-/* Hover effect */
-.dap-star-label:hover,
-.dap-star-label:hover ~ .dap-star-label,
-.dap-star-input:checked ~ .dap-star-label {
-  color: #ffc107;
-}
-
-/* Selected stars */
-.dap-star-input:checked ~ .dap-star-label {
-  color: #ffc107;
-}
-
-/* When focusing on stars */
-.dap-star-input:focus + .dap-star-label {
-  outline: 1px dotted #4361ee;
-  outline-offset: 2px;
-}
-
-/* Focused star for accessibility */
-.dap-star:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.5);
-  border-radius: 50%;
-}
-
-/* Star Choice Component */
-.dap-star-ratings-container {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  width: 100%;
-}
-
-.dap-criterion-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 0;
-  background-color: transparent;
-  border: none;
-  border-radius: 0;
   transition: all 0.2s ease;
 }
 
-.dap-criterion-card:hover {
-  transform: none;
-  box-shadow: none;
+.dap-scale-option input:checked + label,
+.dap-nps-option input:checked + label {
+  background: #7c6aff;
+  border-color: #8c7eff;
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(124, 106, 255, 0.3);
 }
 
-.dap-criterion-label {
-  font-weight: 500;
-  color: #333;
-  font-size: 16px;
-  margin-bottom: 2px;
-}
+.dap-scale-option input, .dap-nps-option input { display: none; }
 
-/* Tables for multi-rating questions */
-.dap-scale-table,
-.dap-star-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  margin-top: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.dap-scale-table th,
-.dap-scale-table td,
-.dap-star-table th,
-.dap-star-table td {
-  padding: 12px 10px;
-  text-align: center;
-  vertical-align: middle;
-  border-bottom: 1px solid #eee;
-}
-
-.dap-scale-table tr:last-child td,
-.dap-star-table tr:last-child td {
-  border-bottom: none;
-}
-
-.dap-scale-table th,
-.dap-star-table th {
-  background-color: #f7f9fc;
-  color: #444;
-  font-weight: 600;
-  font-size: 14px;
-  text-transform: none;
-}
-
-.dap-scale-table td:first-child,
-.dap-star-table td:first-child {
-  text-align: left;
-  font-weight: 500;
-  color: #333;
-  padding-left: 16px;
-}
-
-.dap-option-name,
-.dap-criterion-name {
-  text-align: left !important;
-  font-weight: normal;
-  min-width: 120px;
-}
-
-.dap-scale-min-label {
-  text-align: left !important;
-  font-size: 13px;
-  color: #666;
-}
-
-.dap-scale-max-label {
-  text-align: right !important;
-  font-size: 13px;
-  color: #666;
-}
-
-.dap-scale-labels td {
-  padding-top: 0 !important;
-}
-
-/* Footer buttons */
-.dap-footer {
+.dap-scale-label, .dap-nps-labels {
   display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 24px;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-  background-color: #fafbfc;
-  border-bottom-left-radius: var(--dap-radius, 8px);
-  border-bottom-right-radius: var(--dap-radius, 8px);
-  width: 100%;
-  box-sizing: border-box;
-  margin: 0;
-}
-
-.dap-footer button {
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-size: 15px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.2s ease;
-  outline: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-.dap-footer .dap-cta {
-  background-color: #4361ee;
-  color: white;
-  border: none;
-}
-
-.dap-footer .dap-secondary {
-  background-color: transparent;
-  color: #555;
-  border: 1px solid #ddd;
-}
-
-.dap-footer .dap-cta:hover {
-  background-color: #3a56d4;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(67, 97, 238, 0.15);
-}
-
-.dap-footer .dap-secondary:hover {
-  background-color: #f0f2f5;
-  border-color: #ccc;
-}
-
-/* Responsive adjustments */
-@media (max-width: 720px) {
-  .dap-survey-modal {
-    max-width: 95%;
-  }
-}
-
-@media (max-width: 480px) {
-  .dap-survey-modal {
-    width: 100%;
-    max-width: 95%;
-    max-height: 95vh;
-    margin: 0 auto;
-    border-radius: 12px;
-  }
-  
-  .dap-survey-body {
-    padding: 16px;
-    max-height: calc(95vh - 110px);
-  }
-  
-  .dap-header-bar {
-    padding: 14px 16px;
-  }
-  
-  .dap-footer {
-    padding: 14px 16px;
-  }
-  
-  .dap-survey-title {
-    font-size: 18px;
-  }
-  
-  .dap-question-label {
-    font-size: 15px;
-  }
-  
-  .dap-radio-wrapper,
-  .dap-checkbox-wrapper {
-    padding: 8px;
-  }
-  
-  .dap-scale-table,
-  .dap-star-table {
-    font-size: 13px;
-  }
-  
-  .dap-scale-option label,
-  .dap-nps-option label {
-    font-size: 12px;
-  }
-  
-  .dap-star {
-    font-size: 28px;
-  }
-  
-  .dap-footer button {
-    padding: 9px 16px;
-    font-size: 14px;
-    width: 100%;
-  }
-  
-  .dap-footer {
-    flex-direction: column-reverse;
-    gap: 8px;
-  }
-  
-  .dap-text-input, 
-  .dap-textarea {
-    font-size: 15px;
-  }
-  
-  /* Star rating responsive adjustments */
-  .dap-star-label {
-    font-size: 28px;
-  }
-  
-  .dap-criterion-card {
-    padding: 12px;
-  }
-}
-
-/* Additional star choice styles */
-.dap-criterion-card .dap-star-rating {
-  margin: 8px 0;
-}
-
-.dap-criterion-card .dap-rating-text {
-  text-align: left;
-  margin-left: 4px;
-  color: #555;
-  font-style: italic;
-  font-size: 13px;
-  min-height: 20px;
-}
-
-.dap-criterion-card .dap-rating-selected {
-  color: #4361ee;
-  font-weight: 500;
-  font-style: normal;
-}
-
-/* Adjust for survey question spacing */
-.dap-question-input .dap-star-rating {
-  padding: 5px 0;
-  margin: 5px 0;
-}
-
-/* Style for criterion cards */
-.dap-criterion-card {
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #eee;
-}
-
-.dap-criterion-card:last-child {
-  border-bottom: none;
-}
-
-/* Make clear button smaller for criterion cards */
-.dap-criterion-card .dap-clear-rating {
+  justify-content: space-between;
+  margin-top: 10px;
   font-size: 12px;
-  padding: 3px 6px;
+  color: rgba(200, 195, 230, 0.5);
 }
 
-/* Enhanced Star Choice Styles */
-.dap-star-choice-container {
+/* --- Star Rating --- */
+.dap-star-rating {
   display: flex;
-  flex-direction: column;
-  padding: 10px 0;
+  flex-direction: row-reverse;
+  gap: 6px;
+  justify-content: flex-end;
 }
 
+.dap-star-label {
+  font-size: 36px;
+  color: rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
 
+.dap-star-label:hover,
+.dap-star-label:hover ~ .dap-star-label {
+  color: #ffb800;
+  transform: scale(1.2);
+}
 
-/* Star Choice Specific Styles */
+.dap-star-input:checked ~ .dap-star-label {
+  color: #ff9d00;
+  text-shadow: 0 0 15px rgba(255, 157, 0, 0.4);
+}
+
+.dap-star-input { display: none; }
+
+/* --- Star Choice --- */
 .dap-star-choice-container {
-  padding: 8px 0;
+  width: 100%;
 }
 
 .dap-star-choice-options {
@@ -5140,229 +5234,364 @@ var DAP = (function (exports) {
 }
 
 .dap-star-choice-option {
-  display: flex;
-  align-items: center;
   position: relative;
 }
 
 .dap-star-choice-input {
-  margin: 0;
-  margin-right: 8px;
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
 }
 
 .dap-star-choice-label {
   display: flex;
   align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
   cursor: pointer;
-  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.dap-star-choice-option:hover .dap-star-choice-label {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(124, 106, 255, 0.3);
+}
+
+.dap-star-choice-input:checked + .dap-star-choice-label {
+  background: rgba(124, 106, 255, 0.1);
+  border-color: #7c6aff;
+  box-shadow: 0 0 0 1px #7c6aff;
 }
 
 .dap-star-choice-stars {
   display: flex;
-  align-items: center;
+  gap: 4px;
 }
 
 .dap-star-choice-star {
-  color: #e0e0e0;
   font-size: 20px;
-  line-height: 1;
+  color: rgba(255, 255, 255, 0.1);
 }
 
 .dap-star-choice-star.filled {
-  color: #ffc107;
+  color: #ffb800;
+}
+
+.dap-star-choice-input:checked + .dap-star-choice-label .dap-star-choice-star.filled {
+  color: #ff9d00;
+  text-shadow: 0 0 8px rgba(255, 157, 0, 0.5);
 }
 
 .dap-star-choice-text {
   font-size: 14px;
-  color: #333;
-  margin-left: 4px;
-}
-
-/* Hover effect for the star choice options */
-.dap-star-choice-option:hover .dap-star-choice-label {
+  color: rgba(200, 195, 230, 0.85);
   font-weight: 500;
 }
 
-/* Selected state */
 .dap-star-choice-input:checked + .dap-star-choice-label .dap-star-choice-text {
+  color: #fff;
+}
+
+/* --- Footer --- */
+.dap-footer {
+  padding: 24px 32px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+  background: rgba(14, 14, 24, 0.5);
+}
+
+.dap-footer button {
+  padding: 12px 28px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
   font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-/* Accessible focus style */
-.dap-star-choice-input:focus {
-  outline: 2px solid #4361ee;
-  outline-offset: 2px;
+.dap-cta {
+  background: linear-gradient(135deg, #7c6aff, #9f54f7);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 15px rgba(124, 106, 255, 0.3);
 }
 
-/* Focus states for keyboard navigation */
-.dap-star-choice-container .dap-star-input:focus + .dap-star-label {
-  outline: 2px solid #4361ee;
-  outline-offset: 2px;
+.dap-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(124, 106, 255, 0.45);
 }
 
-/* Mobile-friendly adjustments */
-@media (max-width: 768px) {
-  .dap-star-choice-star {
-    font-size: 18px;
-  }
-  
-  .dap-star-choice-text {
-    font-size: 13px;
-  }
+.dap-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  color: #f0eeff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Small mobile devices */
+.dap-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* --- Opinion Choice (Good to Bad) --- */
+.dap-opinion-choice-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 12px 0;
+  width: 100%;
+}
+
+.dap-opinion-label {
+  font-size: 14px;
+  color: rgba(200, 195, 230, 0.85);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.dap-opinion-options {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.dap-opinion-radio {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(255, 255, 255, 0.03);
+  position: relative;
+  margin: 0;
+}
+
+.dap-opinion-radio:hover {
+  border-color: rgba(124, 106, 255, 0.5);
+  background: rgba(124, 106, 255, 0.08);
+  transform: scale(1.1);
+}
+
+.dap-opinion-radio:checked {
+  border-color: #7c6aff;
+  background: #7c6aff;
+  box-shadow: 0 0 15px rgba(124, 106, 255, 0.4);
+}
+
+.dap-opinion-radio:checked::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  background: white;
+  border-radius: 50%;
+  animation: dapRadioCheck 0.2s ease-out;
+}
+
+@keyframes dapRadioCheck {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* --- Micro Survey --- */
+.dap-microsurvey {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 380px;
+  background: rgba(18, 18, 30, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 30px rgba(124, 106, 255, 0.15);
+  backdrop-filter: blur(20px);
+  padding: 24px;
+  animation: microsurveyIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes microsurveyIn {
+  from { transform: translateY(100px) scale(0.9); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
 @media (max-width: 480px) {
-  .dap-star-choice-option {
-    margin-bottom: 4px;
+  .dap-survey-modal {
+    width: 100%;
+    height: 100%;
+    max-height: 100vh;
+    border-radius: 0;
   }
-  
-  .dap-star-choice-star {
-    font-size: 16px;
+  .dap-microsurvey {
+    width: calc(100% - 48px);
+    left: 24px;
+    bottom: 24px;
   }
 }
 `;
 
   // src/experiences/survey.ts
   init_http();
-  init_selectors();
-  var modalCssText2 = `
+  init_userContextService();
+  var modalCssText3 = `
+/* Font stack: system fonts are used; no external font requests are made. */
+
 :root {
   --dap-z: 2147483640;
-  --dap-overlay: rgba(15, 23, 42, 0.5);
-  --dap-modal-bg: #f8fafc;
-  --dap-modal-header-bg: #f1f5f9;
-  --dap-modal-border: #e2e8f0;
-  --dap-modal-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  --dap-text-primary: #1e293b;
-  --dap-text-secondary: #64748b;
-  --dap-text-muted: #94a3b8;
-  --dap-btn-primary: #3b82f6;
-  --dap-btn-primary-hover: #2563eb;
-  --dap-btn-secondary: #e2e8f0;
-  --dap-btn-secondary-hover: #cbd5e1;
-  --dap-radius: 12px;
-  --dap-spacing: 16px;
+  --dap-bg-glass: rgba(10, 10, 18, 0.72);
+  --dap-bg-surface: rgba(18, 18, 30, 0.95);
+  --dap-bg-elevated: rgba(30, 30, 48, 0.9);
+  --dap-border: rgba(255, 255, 255, 0.08);
+  --dap-accent: #7c6aff;
+  --dap-accent-soft: rgba(124, 106, 255, 0.15);
+  --dap-text-primary: #f0eeff;
+  --dap-text-secondary: rgba(200, 195, 230, 0.65);
+  --dap-text-muted: rgba(160, 155, 200, 0.4);
+  --dap-radius-xl: 20px;
+  --dap-radius-lg: 14px;
+  --dap-radius-sm: 8px;
+  --dap-shadow-deep: 0 32px 80px rgba(0,0,0,0.7);
+  --dap-transition: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .dap-modal-wrap {
   position: fixed;
   inset: 0;
-  background: var(--dap-overlay);
   z-index: var(--dap-z);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  backdrop-filter: blur(4px);
+  background: rgba(4, 4, 12, 0.6);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  animation: dapOverlayIn 0.35s ease both;
+}
+
+@keyframes dapOverlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .dap-modal {
-  background: var(--dap-modal-bg);
-  border: 1px solid var(--dap-modal-border);
-  border-radius: var(--dap-radius);
-  box-shadow: var(--dap-modal-shadow);
+  background: var(--dap-bg-surface);
+  border: 1px solid var(--dap-border);
+  border-radius: var(--dap-radius-xl);
+  box-shadow: var(--dap-shadow-deep), 0 0 40px rgba(124, 106, 255, 0.12);
   width: 100%;
-  max-width: min(90vw, 500px);
-  max-height: min(90vh, 600px);
+  max-width: min(90vw, 540px);
+  max-height: min(90vh, 700px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  font-family: 'Sora', sans-serif;
+  color: var(--dap-text-primary);
+  animation: dapModalIn 0.45s var(--dap-transition) both;
 }
 
-/* Content-adaptive size classes */
-.dap-modal.dap-size-small {
-  max-width: min(90vw, 400px);
-  max-height: min(90vh, 500px);
-}
-
-.dap-modal.dap-size-medium {
-  max-width: min(90vw, 600px);
-  max-height: min(90vh, 650px);
-}
-
-.dap-modal.dap-size-large {
-  max-width: min(90vw, 900px);
-  max-height: min(90vh, 800px);
-}
-
-/* Scrollable class when content overflows */
-.dap-modal.dap-scrollable .dap-modal-body {
-  overflow-y: auto;
-  overflow-x: auto;
-}
-
-/* Default: no scroll unless needed */
-.dap-modal .dap-modal-body {
-  overflow: visible;
+@keyframes dapModalIn {
+  from { opacity: 0; transform: scale(0.9) translateY(20px); filter: blur(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
 }
 
 .dap-header-bar {
-  background: var(--dap-modal-header-bg);
-  border-bottom: 1px solid var(--dap-modal-border);
-  padding: var(--dap-spacing);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 60px;
+  padding: 24px 28px 16px;
+  border-bottom: 1px solid var(--dap-border);
+  background: linear-gradient(180deg, rgba(30,28,56,0.5) 0%, transparent 100%);
 }
 
 .dap-modal-header {
-  color: var(--dap-text-primary);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
+  color: var(--dap-text-primary);
   margin: 0;
-  flex: 1;
+  letter-spacing: -0.01em;
 }
 
 .dap-close {
-  background: transparent;
-  border: none;
-  color: var(--dap-text-secondary);
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 6px;
   width: 32px;
   height: 32px;
+  border: 1px solid var(--dap-border);
+  border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+  color: var(--dap-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
   font-size: 18px;
 }
 
 .dap-close:hover {
-  background: var(--dap-btn-secondary);
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.4);
+  color: #f87171;
+  transform: rotate(90deg) scale(1.1);
 }
 
 .dap-modal-body {
   flex: 1;
   overflow-y: auto;
-  padding: 32px;
-  background: var(--dap-modal-bg);
+  padding: 28px 28px 32px;
+  scroll-behavior: smooth;
+}
+
+.dap-modal-body::-webkit-scrollbar {
+  width: 4px;
+}
+.dap-modal-body::-webkit-scrollbar-thumb {
+  background: rgba(124, 106, 255, 0.25);
+  border-radius: 2px;
 }
 
 .dap-footer {
-  background: var(--dap-modal-bg);
-  border-top: 1px solid var(--dap-modal-border);
-  padding: var(--dap-spacing);
+  padding: 20px 28px;
+  border-top: 1px solid var(--dap-border);
+  background: linear-gradient(0deg, rgba(10,10,18,0.4) 0%, transparent 100%);
   display: flex;
   gap: 12px;
   justify-content: flex-end;
 }
 
 .dap-cta {
-  background: var(--dap-btn-primary);
-  color: white;
-  border: 1px solid var(--dap-btn-primary);
-  cursor: pointer;
-  padding: 12px 24px;
-  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 28px;
+  border-radius: var(--dap-radius-sm);
+  background: linear-gradient(135deg, #7c6aff, #9f54f7);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.1);
+  font-family: 'Sora', sans-serif;
   font-size: 14px;
   font-weight: 500;
-  transition: all 0.15s ease;
+  cursor: pointer;
+  transition: all 0.22s var(--dap-transition);
+  box-shadow: 0 4px 14px rgba(124,106,255,0.3);
 }
 
 .dap-cta:hover {
-  background: var(--dap-btn-primary-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(124,106,255,0.45);
+}
+
+.dap-cta:active { transform: translateY(0); }
+
+.dap-survey-intro {
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--dap-text-secondary);
+  margin-bottom: 24px;
 }
 `;
   function registerSurvey() {
@@ -5447,12 +5676,15 @@ var DAP = (function (exports) {
     }
     const form = document.createElement("form");
     form.className = "dap-survey-form";
+    suppressValidationFor(form);
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       try {
         const responses = [];
         for (const q of payload.questions) {
           const questionData = {
+            questionId: q.questionId,
+            stepId: payload.stepId || "",
             question: q.question,
             type: q.type,
             answer: null
@@ -5481,23 +5713,11 @@ var DAP = (function (exports) {
               break;
             }
             case "OpinionScale":
+            case "OpinionScaleChoice":
             case "StarRating":
             case "NpsScale": {
               const radio = form.querySelector(`input[name="${q.questionId}"]:checked`);
               questionData.answer = radio?.value ? parseInt(radio.value) : null;
-              break;
-            }
-            case "OpinionScaleChoice": {
-              const items = q.criteria || [];
-              if (items.length === 0) break;
-              const ratings = {};
-              items.forEach((item, idx) => {
-                const radio = form.querySelector(`input[name="${q.questionId}_${idx}"]:checked`);
-                if (radio?.value) {
-                  ratings[item] = parseInt(radio.value);
-                }
-              });
-              questionData.answer = Object.keys(ratings).length > 0 ? ratings : null;
               break;
             }
             case "StarChoice": {
@@ -5533,19 +5753,15 @@ var DAP = (function (exports) {
           sessionId: `user-session-${Date.now()}`,
           submittedAt: (/* @__PURE__ */ new Date()).toISOString(),
           responses,
-          client: {
-            userId: "",
-            clientIP: "",
-            userAgent: navigator.userAgent,
-            locale: navigator.language
-          }
+          client: await getClientInfo()
         };
-        console.log("[DAP] Survey submission payload:", submissionData);
+        console.debug("[DAP] Survey submission payload:", submissionData);
         if (flow.config && payload.flowId && payload.organizationId && payload.siteId) {
-          const url = flow.config?.apiurl + `/iap-experience/${payload.organizationId}/${payload.siteId}/survey-responses/${payload.flowId}`;
+          const baseUrl = flow.config.apiurl.replace(/\/$/, "");
+          const url = `${baseUrl}/iap-experience/${payload.organizationId}/${payload.siteId}/survey-responses/${payload.flowId}`;
           const hostBase = location.origin;
-          console.log("[DAP] Submitting survey to API:", url);
-          console.log("[DAP] Request will include X-Host-Url header:", hostBase);
+          console.debug("[DAP] Submitting survey to API:", url);
+          console.debug("[DAP] Request will include X-Host-Url header:", hostBase);
           try {
             await http(flow.config, url, {
               method: "POST",
@@ -5553,7 +5769,7 @@ var DAP = (function (exports) {
               hostBase,
               includeHostHeader: true
             });
-            console.log("[DAP] Survey successfully submitted to API");
+            console.debug("[DAP] Survey successfully submitted to API");
             try {
               console.debug("[DAP Survey] Survey submission - tracking handled by step view system");
             } catch (trackingError) {
@@ -5589,14 +5805,15 @@ var DAP = (function (exports) {
     shell.prevBtn.textContent = "Cancel";
     shell.nextBtn.textContent = "Submit";
     shell.prevBtn.style.display = "inline-block";
+    let _surveyDone = false;
     const closeAll = () => {
+      if (_surveyDone) return;
+      _surveyDone = true;
       document.removeEventListener("keydown", onKey, true);
+      restoreValidationFor(form);
       shell.wrap.remove();
       if (prevActive?.focus) prevActive.focus();
-      if (payload._completionTracker?.onComplete) {
-        console.debug("[DAP] Survey completed, signaling flow engine");
-        payload._completionTracker.onComplete();
-      }
+      payload._completionTracker?.onComplete?.();
     };
     shell.wrap.addEventListener("click", (e) => {
       if (e.target === shell.wrap) closeAll();
@@ -5622,7 +5839,7 @@ var DAP = (function (exports) {
     }
     let targetElement;
     if (payload.targetSelector) {
-      const element = resolveSelector(payload.targetSelector);
+      const element = resolveSelectorWithPriority(payload.targetSelector);
       if (element instanceof HTMLElement) {
         targetElement = element;
       } else {
@@ -5687,38 +5904,26 @@ var DAP = (function (exports) {
     }
     microSurvey.appendChild(contentEl);
     const buttonsEl = document.createElement("div");
+    buttonsEl.className = "dap-footer";
     buttonsEl.style.cssText = `
     display: flex;
     gap: 12px;
     justify-content: flex-end;
+    margin-top: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
   `;
     const cancelBtn = document.createElement("button");
+    cancelBtn.className = "dap-secondary";
     cancelBtn.textContent = payload.cancelText || "Cancel";
-    cancelBtn.style.cssText = `
-    padding: 8px 16px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    background: #ffffff;
-    color: #374151;
-    cursor: pointer;
-    font-size: 14px;
-  `;
     cancelBtn.addEventListener("click", () => {
       cleanupMicroSurvey(id);
       payload._completionTracker?.onComplete?.();
     });
     const submitBtn = document.createElement("button");
+    submitBtn.className = "dap-cta submit-btn";
     submitBtn.textContent = payload.submitText || "Submit";
-    submitBtn.style.cssText = `
-    padding: 8px 16px;
-    border: none;
-    border-radius: 6px;
-    background: #3b82f6;
-    color: #ffffff;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-  `;
     submitBtn.addEventListener("click", async () => {
       const formData = extractMicroSurveyData(microSurvey, payload);
       if (formData) {
@@ -5810,14 +6015,17 @@ var DAP = (function (exports) {
       star.style.cssText = `
       background: none;
       border: none;
-      font-size: 24px;
-      color: #d1d5db;
+      font-size: 28px;
+      color: rgba(255, 255, 255, 0.1);
       cursor: pointer;
-      transition: color 0.2s;
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
     `;
       star.addEventListener("click", () => {
         ratingContainer.querySelectorAll("button").forEach((btn, idx) => {
-          btn.style.color = idx < i ? "#fbbf24" : "#d1d5db";
+          const isFilled = idx < i;
+          btn.style.color = isFilled ? "#ff9d00" : "rgba(255, 255, 255, 0.1)";
+          btn.style.textShadow = isFilled ? "0 0 10px rgba(255, 157, 0, 0.3)" : "none";
+          btn.style.transform = isFilled ? "scale(1.1)" : "scale(1)";
         });
         ratingContainer.dataset.value = i.toString();
       });
@@ -5840,21 +6048,25 @@ var DAP = (function (exports) {
       optionEl.dataset.value = option.value;
       optionEl.style.cssText = `
       padding: 12px 16px;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-      background: #ffffff;
-      color: #374151;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      color: rgba(200, 195, 230, 0.85);
       cursor: pointer;
       text-align: left;
       transition: all 0.2s;
+      font-family: inherit;
+      font-size: 14px;
     `;
       optionEl.addEventListener("click", () => {
         choiceContainer.querySelectorAll("button").forEach((btn) => {
-          btn.style.background = "#ffffff";
-          btn.style.borderColor = "#d1d5db";
+          btn.style.background = "rgba(255, 255, 255, 0.03)";
+          btn.style.borderColor = "rgba(255, 255, 255, 0.08)";
+          btn.style.color = "rgba(200, 195, 230, 0.85)";
         });
-        optionEl.style.background = "#eff6ff";
-        optionEl.style.borderColor = "#3b82f6";
+        optionEl.style.background = "rgba(124, 106, 255, 0.15)";
+        optionEl.style.borderColor = "#7c6aff";
+        optionEl.style.color = "#fff";
         choiceContainer.dataset.value = option.value;
       });
       choiceContainer.appendChild(optionEl);
@@ -5866,13 +6078,16 @@ var DAP = (function (exports) {
     textarea.placeholder = payload.placeholder || "Your feedback...";
     textarea.style.cssText = `
     width: 100%;
-    min-height: 80px;
-    padding: 12px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
+    min-height: 100px;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    color: #f0eeff;
     font-family: inherit;
     font-size: 14px;
     resize: vertical;
+    transition: all 0.2s ease;
   `;
     container.appendChild(textarea);
   }
@@ -5896,32 +6111,33 @@ var DAP = (function (exports) {
     }
   }
   async function submitMicroSurveyData(data, payload, flow) {
+    const responses = [{
+      questionId: payload.questionId || "00000000-0000-0000-0000-000000000000",
+      stepId: payload.stepId || "",
+      question: payload.question || "Quick Survey",
+      type: payload.type === "rating" ? "StarRating" : payload.type === "choice" ? "SingleChoice" : "TextMulti",
+      answer: data
+    }];
     const submissionData = {
       stepId: payload.stepId,
       sessionId: `user-session-${Date.now()}`,
       submittedAt: (/* @__PURE__ */ new Date()).toISOString(),
-      response: data,
-      question: payload.question,
-      type: payload.type,
-      client: {
-        userId: "",
-        clientIP: "",
-        userAgent: navigator.userAgent,
-        locale: navigator.language
-      }
+      responses,
+      client: await getClientInfo()
     };
-    console.log("[DAP] MicroSurvey submission payload:", submissionData);
+    console.debug("[DAP] MicroSurvey submission payload:", submissionData);
     if (flow.config && payload.flowId && payload.organizationId && payload.siteId) {
-      const url = flow.config?.apiurl + `/iap-experience/${payload.organizationId}/${payload.siteId}/survey-responses/${payload.flowId}`;
+      const baseUrl = flow.config.apiurl.replace(/\/$/, "");
+      const url = `${baseUrl}/iap-experience/${payload.organizationId}/${payload.siteId}/survey-responses/${payload.flowId}`;
       const hostBase = location.origin;
-      console.log("[DAP] Submitting micro survey to API:", url);
+      console.debug("[DAP] Submitting micro survey to API:", url);
       await http(flow.config, url, {
         method: "POST",
         body: submissionData,
         hostBase,
         includeHostHeader: true
       });
-      console.log("[DAP] MicroSurvey successfully submitted to API");
+      console.debug("[DAP] MicroSurvey successfully submitted to API");
     } else {
       console.warn("[DAP] MicroSurvey API submission skipped - missing configuration");
     }
@@ -5929,6 +6145,7 @@ var DAP = (function (exports) {
   function cleanupMicroSurvey(id) {
     const state = activeMicroSurveys.get(id);
     if (!state) return;
+    activeMicroSurveys.delete(id);
     state.cleanup.forEach((fn) => {
       try {
         fn();
@@ -5945,7 +6162,6 @@ var DAP = (function (exports) {
         }
       }, 300);
     }
-    activeMicroSurveys.delete(id);
   }
   function renderQuestion(question, index) {
     const wrapper = document.createElement("div");
@@ -6106,30 +6322,30 @@ var DAP = (function (exports) {
   function renderOpinionScaleChoice(container, question) {
     const min = question.scaleMin || 1;
     const max = question.scaleMax || 5;
-    const scaleSize = max - min + 1;
-    const faces = ["\u{1F623}", "\u{1F615}", "\u{1F610}", "\u{1F642}", "\u{1F604}"];
-    const scaleContainer = document.createElement("div");
-    scaleContainer.className = "dap-scale-faces";
+    const choiceWrapper = document.createElement("div");
+    choiceWrapper.className = "dap-opinion-choice-wrapper";
+    const minLabel = document.createElement("div");
+    minLabel.className = "dap-opinion-label";
+    minLabel.textContent = question.labelMin || "Very Good";
+    choiceWrapper.appendChild(minLabel);
+    const optionsContainer = document.createElement("div");
+    optionsContainer.className = "dap-opinion-options";
     for (let i = min; i <= max; i++) {
-      const faceIndex = Math.min(scaleSize - 1, Math.floor((i - min) / (max - min) * (faces.length - 1)));
-      const option = document.createElement("div");
-      option.className = "dap-face-option";
       const input = document.createElement("input");
       input.type = "radio";
-      input.className = "dap-face-radio";
+      input.className = "dap-opinion-radio";
       input.name = question.questionId;
       input.id = `${question.questionId}_${i}`;
       input.value = i.toString();
-      const label = document.createElement("label");
-      label.className = "dap-face-label";
-      label.htmlFor = `${question.questionId}_${i}`;
-      label.textContent = faces[faceIndex];
-      label.title = `Rating: ${i}`;
-      option.appendChild(input);
-      option.appendChild(label);
-      scaleContainer.appendChild(option);
+      input.setAttribute("aria-label", `Rating ${i}`);
+      optionsContainer.appendChild(input);
     }
-    container.appendChild(scaleContainer);
+    choiceWrapper.appendChild(optionsContainer);
+    const maxLabel = document.createElement("div");
+    maxLabel.className = "dap-opinion-label";
+    maxLabel.textContent = question.labelMax || "Bad";
+    choiceWrapper.appendChild(maxLabel);
+    container.appendChild(choiceWrapper);
   }
   function renderNpsScale(container, question) {
     const min = question.scaleMin || 0;
@@ -6231,6 +6447,7 @@ var DAP = (function (exports) {
       const label = document.createElement("label");
       label.htmlFor = input.id;
       label.className = "dap-star-label";
+      label.innerHTML = "\u2605";
       const starLabel = question.options && question.options.length === max ? question.options[actualRating - 1] : defaultStarLabels[actualRating];
       label.setAttribute("aria-label", `${actualRating} star${actualRating > 1 ? "s" : ""}`);
       label.setAttribute("title", `${actualRating} star${actualRating > 1 ? "s" : ""}: ${starLabel}`);
@@ -6408,7 +6625,7 @@ var DAP = (function (exports) {
     if (!shadow.getElementById("dap-modal-style")) {
       const style = document.createElement("style");
       style.id = "dap-modal-style";
-      style.textContent = modalCssText2;
+      style.textContent = modalCssText3;
       shadow.appendChild(style);
     }
     if (!shadow.getElementById("dap-survey-style")) {
@@ -6431,23 +6648,208 @@ var DAP = (function (exports) {
       e.preventDefault();
     }
   }
+  async function getClientInfo() {
+    const userContext = userContextService.getAnalyticsContext();
+    let clientIP = window.clientIP || window.clientIp || window.ipAddress || document.querySelector('meta[name="client-ip"]')?.getAttribute("content");
+    if (!clientIP) {
+      try {
+        const cachedIP = sessionStorage.getItem("dap_client_ip");
+        if (cachedIP) {
+          clientIP = cachedIP;
+        } else {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 2e3);
+          const response = await fetch("https://api.ipify.org?format=json", {
+            signal: controller.signal,
+            credentials: "omit"
+          });
+          const data = await response.json();
+          clientIP = data.ip || "";
+          if (clientIP) sessionStorage.setItem("dap_client_ip", clientIP);
+          clearTimeout(timeout);
+        }
+      } catch (e) {
+        console.debug("[DAP] Could not retrieve original IP:", e);
+      }
+    }
+    return {
+      userId: userContext.userId || "",
+      clientIP: clientIP || "",
+      userAgent: navigator.userAgent,
+      locale: navigator.language
+    };
+  }
 
   // src/experiences/popover.ts
   init_registry();
-  init_selectors();
   var activePopovers = /* @__PURE__ */ new Map();
+  var POPOVER_CSS = `
+/* Font stack: system fonts are used; no external font requests are made. */
+
+:root {
+  --pop-font:    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --pop-bg:      rgba(255, 255, 255, 0.94);
+  --pop-border:  rgba(99, 102, 241, 0.18);
+  --pop-radius:  18px;
+  --pop-shadow:
+    0 0 0 1px rgba(99,102,241,0.10),
+    0 8px 24px rgba(0, 0, 0, 0.08),
+    0 20px 60px rgba(0, 0, 0, 0.10);
+  --pop-text:    #0F172A;
+  --pop-muted:   #64748B;
+  --pop-accent:  #6366F1;
+  --pop-accent2: #818CF8;
+}
+
+/* \u2500\u2500 Card \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-popover-v2 {
+  position: absolute;
+  z-index: 9999;
+  font-family: var(--pop-font);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--pop-text);
+  max-width: 320px;
+  min-width: 220px;
+
+  background: var(--pop-bg);
+  border: 1.5px solid var(--pop-border);
+  border-radius: var(--pop-radius);
+  box-shadow: var(--pop-shadow);
+
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+
+  padding: 20px 22px 18px;
+  opacity: 0;
+  transform: scale(0.94) translateY(6px);
+  transition:
+    opacity   0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+/* Top gradient sheen */
+.dap-popover-v2::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: var(--pop-radius);
+  background: linear-gradient(148deg, rgba(255,255,255,0.62) 0%, transparent 52%);
+  pointer-events: none;
+}
+
+.dap-popover-v2.visible {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  pointer-events: auto;
+}
+
+/* Accent top bar */
+.dap-popover-v2::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 20px; right: 20px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--pop-accent), var(--pop-accent2), transparent);
+  border-radius: 0 0 2px 2px;
+}
+
+/* \u2500\u2500 Title \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-popover-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--pop-text);
+  margin: 0 0 8px;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  position: relative; z-index: 1;
+}
+
+/* \u2500\u2500 Body \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-popover-body {
+  color: var(--pop-muted);
+  line-height: 1.6;
+  font-size: 13px;
+  margin: 0;
+  position: relative; z-index: 1;
+}
+.dap-popover-body a {
+  color: var(--pop-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* \u2500\u2500 CTA row \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-popover-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+  position: relative; z-index: 1;
+}
+
+.dap-popover-btn {
+  padding: 7px 16px;
+  border-radius: 11px;
+  font-family: var(--pop-font);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  transition: all 0.17s ease;
+}
+
+.dap-popover-btn.primary {
+  background: linear-gradient(135deg, var(--pop-accent), var(--pop-accent2));
+  color: #fff;
+  border: none;
+  box-shadow: 0 3px 12px rgba(99,102,241,0.32);
+}
+.dap-popover-btn.primary:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 5px 16px rgba(99,102,241,0.42);
+}
+
+.dap-popover-btn.secondary {
+  background: rgba(0,0,0,0.04);
+  color: var(--pop-text);
+  border: 1.5px solid rgba(0,0,0,0.10);
+}
+.dap-popover-btn.secondary:hover {
+  background: rgba(0,0,0,0.08);
+  transform: translateY(-1px);
+}
+
+/* \u2500\u2500 Arrow \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-popover-arrow-v2 {
+  position: absolute;
+  width: 13px; height: 13px;
+  background: var(--pop-bg);
+  border: 1.5px solid var(--pop-border);
+  transform: rotate(45deg);
+  z-index: 0;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+/* \u2500\u2500 Dismiss animation \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+@keyframes popover-out {
+  from { opacity:1; transform:scale(1) translateY(0); }
+  to   { opacity:0; transform:scale(0.94) translateY(6px); }
+}
+.dap-popover-v2.dismissing {
+  animation: popover-out 0.18s cubic-bezier(0.4,0,1,1) both;
+}
+`;
   function registerPopover() {
     register("popover", renderPopover);
   }
   async function renderPopover(flow) {
     const { payload, id } = flow;
     console.debug("[DAP] Popover initialized", { id, payload });
-    console.debug("[DAP] Popover targetSelector:", payload.targetSelector);
-    console.debug("[DAP] Popover trigger:", payload.trigger);
-    console.debug("[DAP] Popover body:", payload.body);
-    console.debug("[DAP] Popover bodyBlocks:", payload.bodyBlocks);
     if (!payload.targetSelector) {
-      console.error("[DAP] Popover missing required elementSelector");
+      console.error("[DAP] Popover missing required targetSelector");
       payload._completionTracker?.onComplete?.();
       return;
     }
@@ -6456,1178 +6858,929 @@ var DAP = (function (exports) {
       payload._completionTracker?.onComplete?.();
       return;
     }
-    const targetSelector = payload.targetSelector;
-    const trigger = payload.trigger || "click";
-    console.debug("[DAP] Popover looking for target element:", targetSelector);
-    if (activePopovers.has(id)) {
-      cleanupPopover(id);
-    }
-    const targetElement = await waitForTargetElement(targetSelector);
+    if (activePopovers.has(id)) cleanupPopover(id);
+    ensureStyles3();
+    const targetElement = await waitForTargetElement(payload.targetSelector);
     if (!targetElement) {
-      console.warn("[DAP] Popover target not found:", targetSelector);
-      console.debug("[DAP] Available elements with IDs:", Array.from(document.querySelectorAll("[id]")).map((el) => el.id));
-      console.debug("[DAP] Available elements with classes:", Array.from(document.querySelectorAll("[class]")).slice(0, 10).map((el) => el.className));
+      console.warn("[DAP] Popover target not found:", payload.targetSelector);
       payload._completionTracker?.onComplete?.();
       return;
     }
-    console.debug("[DAP] Popover anchor resolved successfully", { targetSelector, targetElement });
     const popoverElement = createPopoverElement(payload, id);
-    console.debug("[DAP] Popover element created:", popoverElement);
-    const popoverState = {
+    const state = {
       id,
       element: popoverElement,
       targetElement,
       observer: null,
       cleanup: [],
-      isActive: false
+      isActive: false,
+      payload
     };
-    activePopovers.set(id, popoverState);
-    setupTriggerHandling(popoverState, trigger, payload);
-    setupTargetObservation(popoverState);
-    const t = String(trigger).toLowerCase().trim();
-    const isInteractionTrigger = t === "click" || t === "on click" || t === "hover" || t === "on hover" || t === "focus" || t === "on focus";
-    if (isInteractionTrigger) {
-      console.debug(`[DAP] Popover immediate show for trigger: ${t}`);
-      showPopover(popoverState, payload);
-    }
-    console.debug("[DAP] Popover setup complete", { id, trigger });
-  }
-  async function waitForTargetElement(selector, timeout = 5e3) {
-    const existing = resolveSelector(selector);
-    if (existing) {
-      return existing;
-    }
-    return new Promise((resolve) => {
-      let timeoutId;
-      let observer;
-      const cleanup = () => {
-        if (timeoutId) clearTimeout(timeoutId);
-        if (observer) observer.disconnect();
-      };
-      timeoutId = setTimeout(() => {
-        cleanup();
-        resolve(null);
-      }, timeout);
-      observer = new MutationObserver(() => {
-        const element = resolveSelector(selector);
-        if (element) {
-          cleanup();
-          resolve(element);
-        }
-      });
-      observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-        attributes: false
-      });
-    });
+    activePopovers.set(id, state);
+    setupTriggerHandling(state, payload.trigger || "click", payload);
+    setupTargetObservation(state);
+    console.debug("[DAP] Popover setup complete", { id });
   }
   function createPopoverElement(payload, id) {
     const popover = document.createElement("div");
-    popover.className = "dap-popover";
+    popover.className = "dap-popover-v2";
     popover.id = `dap-popover-${id}`;
     popover.setAttribute("role", "dialog");
     popover.setAttribute("aria-live", "polite");
-    Object.assign(popover.style, {
-      position: "absolute",
-      zIndex: "9999",
-      background: "#f0f9ff",
-      border: "1px solid #bae6fd",
-      borderRadius: "12px",
-      boxShadow: "0 8px 32px rgba(59, 130, 246, 0.12), 0 4px 16px rgba(0, 0, 0, 0.08)",
-      padding: "18px",
-      maxWidth: "320px",
-      minWidth: "200px",
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      fontSize: "14px",
-      lineHeight: "1.5",
-      color: "#1e293b",
-      opacity: "0",
-      transform: "scale(0.95)",
-      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-      pointerEvents: "none"
-    });
     if (payload.title) {
       const title = document.createElement("h4");
-      title.style.cssText = `
-      margin: 0 0 10px 0; 
-      font-size: 16px; 
-      font-weight: 600; 
-      color: #0f172a;
-      line-height: 1.25;
-      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
-    `;
+      title.className = "dap-popover-title";
       title.textContent = payload.title;
       popover.appendChild(title);
     }
     if (payload.body) {
       const body = document.createElement("div");
-      body.style.cssText = `
-      color: #475569; 
-      line-height: 1.6;
-      margin: 0;
-      text-shadow: 0 1px 1px rgba(255, 255, 255, 0.3);
-    `;
+      body.className = "dap-popover-body";
       body.innerHTML = sanitizeHtml(payload.body);
       popover.appendChild(body);
     }
-    const ctaContainer = createCTAButtons(payload, id);
-    if (ctaContainer) {
-      popover.appendChild(ctaContainer);
-    }
+    const ctaEl = createCTAButtons(payload, id);
+    if (ctaEl) popover.appendChild(ctaEl);
     if (payload.showArrow !== false) {
-      const arrow = createPopoverArrow();
+      const arrow = document.createElement("div");
+      arrow.className = "dap-popover-arrow-v2";
       popover.appendChild(arrow);
     }
     return popover;
   }
   function createCTAButtons(payload, id) {
-    const hasButtons2 = payload.bodyBlocks?.some((block) => block.kind === "button");
-    if (!hasButtons2) return null;
-    const container = document.createElement("div");
-    container.style.cssText = `
-    margin-top: 12px;
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-  `;
-    payload.bodyBlocks?.forEach((block) => {
-      if (block.kind === "button") {
-        const buttonBlock = block;
-        const button = document.createElement("button");
-        button.style.cssText = `
-        padding: 8px 16px;
-        border: 1px solid ${buttonBlock.variant === "primary" ? "#3b82f6" : "#cbd5e1"};
-        border-radius: 8px;
-        background: ${buttonBlock.variant === "primary" ? "#3b82f6" : "#ffffff"};
-        color: ${buttonBlock.variant === "primary" ? "#ffffff" : "#1e293b"};
-        font-size: 13px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      `;
-        button.textContent = buttonBlock.label;
-        button.addEventListener("click", () => {
-          console.debug("[DAP] Popover CTA clicked", { id, action: buttonBlock.action });
-          if (buttonBlock.action === "advance") {
-            payload._completionTracker?.onStepAdvance?.(payload.stepId || id);
-          } else if (buttonBlock.action === "dismiss") {
-            dismissPopover(id);
-          }
-          payload._completionTracker?.onComplete?.();
-        });
-        button.addEventListener("mouseenter", () => {
-          if (buttonBlock.variant === "primary") {
-            button.style.background = "#2563eb";
-            button.style.transform = "translateY(-1px)";
-          } else {
-            button.style.background = "#f1f5f9";
-            button.style.transform = "translateY(-1px)";
-          }
-        });
-        button.addEventListener("mouseleave", () => {
-          button.style.background = buttonBlock.variant === "primary" ? "#3b82f6" : "#ffffff";
-          button.style.transform = "translateY(0)";
-        });
-        container.appendChild(button);
-      }
+    const btnBlocks = payload.bodyBlocks?.filter((b) => b.kind === "button") ?? [];
+    if (!btnBlocks.length) return null;
+    const row = document.createElement("div");
+    row.className = "dap-popover-actions";
+    btnBlocks.forEach((block) => {
+      const b = block;
+      const btn = document.createElement("button");
+      btn.className = `dap-popover-btn ${b.variant === "primary" ? "primary" : "secondary"}`;
+      btn.textContent = b.label;
+      btn.addEventListener("click", () => {
+        if (b.action === "advance") {
+          payload._completionTracker?.onStepAdvance?.(payload.stepId || id);
+        } else if (b.action === "dismiss") {
+          dismissPopover(id);
+        }
+        payload._completionTracker?.onComplete?.();
+      });
+      row.appendChild(btn);
     });
-    return container.children.length > 0 ? container : null;
-  }
-  function createPopoverArrow() {
-    const arrow = document.createElement("div");
-    arrow.className = "dap-popover-arrow";
-    arrow.style.cssText = `
-    position: absolute;
-    width: 10px;
-    height: 10px;
-    background: #f0f9ff;
-    border: 1px solid #bae6fd;
-    transform: rotate(45deg);
-    z-index: -1;
-  `;
-    return arrow;
+    return row.children.length ? row : null;
   }
   function setupTriggerHandling(state, trigger, payload) {
     const { targetElement, element } = state;
-    const normalizedTrigger = trigger === "on click" ? "click" : trigger === "on hover" ? "hover" : trigger === "on focus" ? "focus" : trigger === "on page load" ? "on page load" : trigger;
-    console.debug("[DAP] Popover setting up trigger:", { originalTrigger: trigger, normalizedTrigger, targetElement });
-    switch (normalizedTrigger) {
-      case "click":
-        const clickHandler = (e) => {
-          console.debug("[DAP] Popover click triggered", e);
-          e.preventDefault();
-          e.stopPropagation();
-          showPopover(state, payload);
-        };
-        targetElement.addEventListener("click", clickHandler);
-        state.cleanup.push(() => targetElement.removeEventListener("click", clickHandler));
-        console.debug("[DAP] Popover click listener attached");
+    const norm = trigger === "on click" ? "click" : trigger === "on hover" ? "hover" : trigger === "on focus" ? "focus" : trigger === "on page load" ? "pageload" : trigger;
+    switch (norm) {
+      case "click": {
+        showPopover(state, payload);
         break;
-      case "hover":
-        const showHandler = () => {
-          console.debug("[DAP] Popover hover show triggered");
+      }
+      case "hover": {
+        showPopover(state, payload);
+        let leaveTimer;
+        const show = () => {
+          clearTimeout(leaveTimer);
           showPopover(state, payload);
         };
-        const hideHandler = () => {
-          console.debug("[DAP] Popover hover hide triggered");
-          hidePopover(state, payload);
+        const hide = () => {
+          leaveTimer = window.setTimeout(() => hidePopover(state, payload), 120);
         };
-        targetElement.addEventListener("mouseenter", showHandler);
-        targetElement.addEventListener("mouseleave", hideHandler);
-        element.addEventListener("mouseenter", showHandler);
-        element.addEventListener("mouseleave", hideHandler);
+        targetElement.addEventListener("mouseenter", show);
+        targetElement.addEventListener("mouseleave", hide);
+        element.addEventListener("mouseenter", () => clearTimeout(leaveTimer));
+        element.addEventListener("mouseleave", hide);
         state.cleanup.push(() => {
-          targetElement.removeEventListener("mouseenter", showHandler);
-          targetElement.removeEventListener("mouseleave", hideHandler);
-          element.removeEventListener("mouseenter", showHandler);
-          element.removeEventListener("mouseleave", hideHandler);
+          targetElement.removeEventListener("mouseenter", show);
+          targetElement.removeEventListener("mouseleave", hide);
         });
-        console.debug("[DAP] Popover hover listeners attached");
         break;
-      case "focus":
-        const focusHandler = () => {
-          console.debug("[DAP] Popover focus triggered");
-          showPopover(state, payload);
-        };
-        const blurHandler = () => {
-          console.debug("[DAP] Popover blur triggered");
-          hidePopover(state, payload);
-        };
-        targetElement.addEventListener("focus", focusHandler);
-        targetElement.addEventListener("blur", blurHandler);
+      }
+      case "focus": {
+        showPopover(state, payload);
+        const show = () => showPopover(state, payload);
+        const hide = () => hidePopover(state, payload);
+        targetElement.addEventListener("focus", show);
+        targetElement.addEventListener("blur", hide);
         state.cleanup.push(() => {
-          targetElement.removeEventListener("focus", focusHandler);
-          targetElement.removeEventListener("blur", blurHandler);
+          targetElement.removeEventListener("focus", show);
+          targetElement.removeEventListener("blur", hide);
         });
-        if (document.activeElement === targetElement) {
-          showPopover(state, payload);
-        }
-        console.debug("[DAP] Popover focus listeners attached");
         break;
+      }
+      default:
+        setTimeout(() => showPopover(state, payload), 120);
     }
-    showPopover(state, payload);
   }
   function setupTargetObservation(state) {
-    const observer = new MutationObserver(() => {
-      const isStillConnected = state.targetElement.isConnected;
-      if (!isStillConnected) {
-        console.debug("[DAP] Popover target element disappeared", { id: state.id });
-        cleanupPopover(state.id);
-      }
+    const obs = new MutationObserver(() => {
+      if (!state.targetElement.isConnected) hidePopover(state, state.payload);
     });
-    observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true
-    });
-    state.observer = observer;
-    state.cleanup.push(() => observer.disconnect());
+    obs.observe(document.documentElement, { childList: true, subtree: true });
+    state.observer = obs;
+    state.cleanup.push(() => obs.disconnect());
   }
   function showPopover(state, payload) {
-    console.debug("[DAP] showPopover called", { id: state.id, isActive: state.isActive });
-    if (state.isActive) {
-      console.debug("[DAP] Popover already active, skipping");
-      return;
-    }
+    if (state.isActive) return;
     state.isActive = true;
-    console.debug("[DAP] Popover shown", { id: state.id });
     document.body.appendChild(state.element);
-    console.debug("[DAP] Popover element appended to body");
     positionPopover(state, payload.placement || "bottom", payload.showArrow !== false);
-    console.debug("[DAP] Popover positioned");
-    setTimeout(() => {
-      state.element.style.pointerEvents = "auto";
-      state.element.style.opacity = "1";
-      state.element.style.transform = "scale(1)";
-      console.debug("[DAP] Popover animation started");
-    }, 10);
+    requestAnimationFrame(() => {
+      state.element.classList.add("visible");
+    });
     setupGlobalEventHandlers(state, payload);
     if (hasButtons(payload)) {
       state.element.setAttribute("tabindex", "-1");
       state.element.focus();
       trapFocus(state.element);
     }
-    console.debug("[DAP] Popover show complete");
   }
   function hidePopover(state, payload) {
     if (!state.isActive) return;
     state.isActive = false;
-    console.debug("[DAP] Popover dismissed", { id: state.id });
-    state.element.style.opacity = "0";
-    state.element.style.transform = "scale(0.95)";
-    state.element.style.pointerEvents = "none";
+    state.element.classList.remove("visible");
+    state.element.classList.add("dismissing");
     setTimeout(() => {
-      if (state.element.parentNode) {
-        state.element.parentNode.removeChild(state.element);
+      state.element.classList.remove("dismissing");
+      state.element.parentNode?.removeChild(state.element);
+    }, 200);
+    state.cleanup.forEach((fn) => {
+      try {
+        fn();
+      } catch {
       }
-    }, 150);
+    });
+    state.cleanup = [];
+    activePopovers.delete(state.id);
     payload._completionTracker?.onComplete?.();
   }
   function dismissPopover(id) {
     const state = activePopovers.get(id);
-    if (state) {
-      hidePopover(state, {});
-    }
+    if (state) hidePopover(state, {});
   }
   function positionPopover(state, placement, showArrow) {
     const { element, targetElement } = state;
-    const targetRect = targetElement.getBoundingClientRect();
-    const popoverRect = element.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const scrollX = window.scrollX;
-    const scrollY = window.scrollY;
-    const spacing = 8;
-    const viewportPadding = 16;
-    let top;
-    let left;
-    let actualPlacement = placement;
+    const tRect = targetElement.getBoundingClientRect();
+    const pRect = element.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const sx = window.scrollX, sy = window.scrollY;
+    const GAP = 10, PAD = 16;
     const positions = {
-      top: {
-        top: targetRect.top + scrollY - popoverRect.height - spacing,
-        left: targetRect.left + scrollX + (targetRect.width - popoverRect.width) / 2
-      },
-      bottom: {
-        top: targetRect.bottom + scrollY + spacing,
-        left: targetRect.left + scrollX + (targetRect.width - popoverRect.width) / 2
-      },
-      left: {
-        top: targetRect.top + scrollY + (targetRect.height - popoverRect.height) / 2,
-        left: targetRect.left + scrollX - popoverRect.width - spacing
-      },
-      right: {
-        top: targetRect.top + scrollY + (targetRect.height - popoverRect.height) / 2,
-        left: targetRect.right + scrollX + spacing
-      }
+      top: { top: tRect.top + sy - pRect.height - GAP, left: tRect.left + sx + (tRect.width - pRect.width) / 2 },
+      bottom: { top: tRect.bottom + sy + GAP, left: tRect.left + sx + (tRect.width - pRect.width) / 2 },
+      left: { top: tRect.top + sy + (tRect.height - pRect.height) / 2, left: tRect.left + sx - pRect.width - GAP },
+      right: { top: tRect.top + sy + (tRect.height - pRect.height) / 2, left: tRect.right + sx + GAP }
     };
-    const preferred = positions[placement];
-    if (!preferred || !fitsInViewport(preferred, popoverRect, viewportPadding)) {
-      actualPlacement = findBestPlacement(positions, popoverRect, viewportPadding) || placement;
+    const fits = (p) => {
+      if (!p) return false;
+      return p.top >= PAD && p.left >= PAD && p.top + pRect.height <= vh - PAD && p.left + pRect.width <= vw - PAD;
+    };
+    const VALID_PLACEMENTS = /* @__PURE__ */ new Set(["top", "bottom", "left", "right"]);
+    const normalisedPlacement = placement.toLowerCase();
+    let best = VALID_PLACEMENTS.has(normalisedPlacement) ? normalisedPlacement : "bottom";
+    if (!fits(positions[best])) {
+      const order = ["bottom", "top", "right", "left"];
+      for (const k of order) {
+        if (fits(positions[k])) {
+          best = k;
+          break;
+        }
+      }
     }
-    const finalPosition = positions[actualPlacement] || positions.bottom;
-    top = finalPosition.top;
-    left = finalPosition.left;
-    left = Math.max(viewportPadding, Math.min(left, viewportWidth - popoverRect.width - viewportPadding));
-    top = Math.max(viewportPadding, Math.min(top, viewportHeight - popoverRect.height - viewportPadding));
+    const pos = positions[best] ?? positions["bottom"];
+    const top = Math.max(PAD, Math.min(pos.top, vh - pRect.height - PAD));
+    const left = Math.max(PAD, Math.min(pos.left, vw - pRect.width - PAD));
     element.style.top = `${top}px`;
     element.style.left = `${left}px`;
-    if (showArrow) {
-      positionArrow(element, targetRect, actualPlacement, { top, left }, scrollX, scrollY);
-    }
+    if (showArrow) positionArrow(element, tRect, best, { top, left }, sx, sy);
   }
-  function fitsInViewport(position, rect, padding) {
-    return position.top >= padding && position.left >= padding && position.top + rect.height <= window.innerHeight - padding && position.left + rect.width <= window.innerWidth - padding;
-  }
-  function findBestPlacement(positions, rect, padding) {
-    const placements = ["bottom", "top", "right", "left"];
-    for (const placement of placements) {
-      const pos = positions[placement];
-      if (pos && fitsInViewport(pos, rect, padding)) {
-        return placement;
-      }
-    }
-    return null;
-  }
-  function positionArrow(popover, targetRect, placement, popoverPos, scrollX, scrollY) {
-    const arrow = popover.querySelector(".dap-popover-arrow");
+  function positionArrow(popover, tRect, placement, popPos, sx, sy) {
+    const arrow = popover.querySelector(".dap-popover-arrow-v2");
     if (!arrow) return;
-    const arrowSize = 8;
-    const targetCenterX = targetRect.left + scrollX + targetRect.width / 2;
-    const targetCenterY = targetRect.top + scrollY + targetRect.height / 2;
+    const cx = tRect.left + sx + tRect.width / 2;
+    const cy = tRect.top + sy + tRect.height / 2;
+    const S = 7;
+    arrow.style.top = "";
+    arrow.style.bottom = "";
+    arrow.style.left = "";
+    arrow.style.right = "";
     switch (placement) {
       case "top":
-        arrow.style.top = `calc(100% - 1px)`;
-        arrow.style.left = `${Math.max(12, Math.min(targetCenterX - popoverPos.left - arrowSize / 2, popover.offsetWidth - 20))}px`;
-        arrow.style.borderBottomColor = "transparent";
-        arrow.style.borderRightColor = "transparent";
-        break;
-      case "bottom":
-        arrow.style.top = `-${arrowSize / 2}px`;
-        arrow.style.left = `${Math.max(12, Math.min(targetCenterX - popoverPos.left - arrowSize / 2, popover.offsetWidth - 20))}px`;
+        arrow.style.bottom = `-${S}px`;
+        arrow.style.left = `${Math.max(14, Math.min(cx - popPos.left - S, popover.offsetWidth - 28))}px`;
         arrow.style.borderTopColor = "transparent";
         arrow.style.borderLeftColor = "transparent";
         break;
-      case "left":
-        arrow.style.left = `calc(100% - 1px)`;
-        arrow.style.top = `${Math.max(12, Math.min(targetCenterY - popoverPos.top - arrowSize / 2, popover.offsetHeight - 20))}px`;
+      case "bottom":
+        arrow.style.top = `-${S}px`;
+        arrow.style.left = `${Math.max(14, Math.min(cx - popPos.left - S, popover.offsetWidth - 28))}px`;
+        arrow.style.borderBottomColor = "transparent";
         arrow.style.borderRightColor = "transparent";
+        break;
+      case "left":
+        arrow.style.right = `-${S}px`;
+        arrow.style.top = `${Math.max(14, Math.min(cy - popPos.top - S, popover.offsetHeight - 28))}px`;
+        arrow.style.borderLeftColor = "transparent";
         arrow.style.borderBottomColor = "transparent";
         break;
       case "right":
-        arrow.style.left = `-${arrowSize / 2}px`;
-        arrow.style.top = `${Math.max(12, Math.min(targetCenterY - popoverPos.top - arrowSize / 2, popover.offsetHeight - 20))}px`;
-        arrow.style.borderLeftColor = "transparent";
+        arrow.style.left = `-${S}px`;
+        arrow.style.top = `${Math.max(14, Math.min(cy - popPos.top - S, popover.offsetHeight - 28))}px`;
+        arrow.style.borderRightColor = "transparent";
         arrow.style.borderTopColor = "transparent";
         break;
     }
   }
   function setupGlobalEventHandlers(state, payload) {
-    const outsideClickHandler = (e) => {
-      const target = e.target;
-      if (!state.element.contains(target) && !state.targetElement.contains(target)) {
+    const clickOutside = (e) => {
+      const t = e.target;
+      if (!state.element.contains(t) && !state.targetElement.contains(t)) {
         hidePopover(state, payload);
       }
     };
-    const keyHandler = (e) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        hidePopover(state, payload);
-      }
+    const esc = (e) => {
+      if (e.key === "Escape") hidePopover(state, payload);
     };
-    const navigationHandler = () => {
-      hidePopover(state, payload);
-    };
+    const nav = () => hidePopover(state, payload);
     setTimeout(() => {
-      document.addEventListener("click", outsideClickHandler);
-      document.addEventListener("keydown", keyHandler);
-      window.addEventListener("beforeunload", navigationHandler);
-      window.addEventListener("popstate", navigationHandler);
+      document.addEventListener("click", clickOutside);
+      document.addEventListener("keydown", esc);
+      window.addEventListener("beforeunload", nav);
+      window.addEventListener("popstate", nav);
     }, 100);
     state.cleanup.push(() => {
-      document.removeEventListener("click", outsideClickHandler);
-      document.removeEventListener("keydown", keyHandler);
-      window.removeEventListener("beforeunload", navigationHandler);
-      window.removeEventListener("popstate", navigationHandler);
+      document.removeEventListener("click", clickOutside);
+      document.removeEventListener("keydown", esc);
+      window.removeEventListener("beforeunload", nav);
+      window.removeEventListener("popstate", nav);
     });
   }
   function hasButtons(payload) {
-    return payload.bodyBlocks?.some((block) => block.kind === "button") || false;
+    return payload.bodyBlocks?.some((b) => b.kind === "button") ?? false;
   }
-  function trapFocus(element) {
-    const focusableElements = element.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  function trapFocus(el) {
+    const focusable = el.querySelectorAll(
+      "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"
     );
-    if (focusableElements.length === 0) return;
-    const firstElement = focusableElements[0];
-    const lastElement = focusableElements[focusableElements.length - 1];
-    const handleTab = (e) => {
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    el.addEventListener("keydown", (e) => {
       if (e.key !== "Tab") return;
       if (e.shiftKey) {
-        if (document.activeElement === firstElement) {
+        if (document.activeElement === first) {
           e.preventDefault();
-          lastElement.focus();
+          last.focus();
         }
       } else {
-        if (document.activeElement === lastElement) {
+        if (document.activeElement === last) {
           e.preventDefault();
-          firstElement.focus();
+          first.focus();
         }
       }
-    };
-    element.addEventListener("keydown", handleTab);
+    });
+  }
+  async function waitForTargetElement(selector, timeout = 5e3) {
+    const existing = resolveSelectorWithPriority(selector);
+    if (existing) return existing;
+    return new Promise((resolve) => {
+      let tid;
+      const obs = new MutationObserver(() => {
+        const el = resolveSelectorWithPriority(selector);
+        if (el) {
+          clearTimeout(tid);
+          obs.disconnect();
+          resolve(el);
+        }
+      });
+      obs.observe(document.documentElement, { childList: true, subtree: true });
+      tid = window.setTimeout(() => {
+        obs.disconnect();
+        resolve(null);
+      }, timeout);
+    });
+  }
+  function ensureStyles3() {
+    if (!document.getElementById("dap-popover-style-v2")) {
+      const s = document.createElement("style");
+      s.id = "dap-popover-style-v2";
+      s.textContent = POPOVER_CSS;
+      document.head.appendChild(s);
+    }
   }
   function cleanupPopover(id) {
-    console.debug("[DAP] Popover destroyed", { id });
     const state = activePopovers.get(id);
     if (!state) return;
-    state.cleanup.forEach((cleanup) => {
+    state.cleanup.forEach((fn) => {
       try {
-        cleanup();
-      } catch (error) {
-        console.warn("[DAP] Error during popover cleanup:", error);
+        fn();
+      } catch {
       }
     });
-    if (state.element && state.element.parentNode) {
-      state.element.parentNode.removeChild(state.element);
-    }
+    state.element.parentNode?.removeChild(state.element);
     activePopovers.delete(id);
   }
 
   // src/experiences/beacon.ts
   init_registry();
-  init_selectors();
   var activeBeacons = /* @__PURE__ */ new Map();
+  var BEACON_STYLES = `
+/* Font stack: system fonts are used; no external font requests are made. */
+
+/* \u2500\u2500 Keyframes \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+@keyframes dap-beacon-pulse {
+  0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(124, 106, 255, 0.4); }
+  70%  { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(124, 106, 255, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(124, 106, 255, 0); }
+}
+
+@keyframes dap-beacon-ring {
+  0%   { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes dap-beacon-in {
+  from { opacity: 0; transform: scale(0.9) translateY(12px); filter: blur(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+}
+
+@keyframes dap-beacon-out {
+  from { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+  to   { opacity: 0; transform: scale(0.95) translateY(-8px); filter: blur(4px); }
+}
+
+/* \u2500\u2500 Container \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-beacon-v2 {
+  --beacon-accent: #7c6aff;
+  --beacon-bg: rgba(18, 18, 30, 0.95);
+  --beacon-border: rgba(255, 255, 255, 0.08);
+  --beacon-text: #f0eeff;
+  --beacon-muted: rgba(200, 195, 230, 0.6);
+  --beacon-radius: 20px;
+  
+  position: fixed;
+  z-index: 2147483640;
+  font-family: 'Sora', sans-serif;
+  pointer-events: auto;
+  user-select: none;
+  
+  background: var(--beacon-bg);
+  border: 1px solid var(--beacon-border);
+  border-radius: var(--beacon-radius);
+  padding: 24px;
+  width: 320px;
+  
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: 
+    0 32px 64px rgba(0, 0, 0, 0.6),
+    0 0 40px rgba(124, 106, 255, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    
+  animation: dap-beacon-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  cursor: default;
+  overflow: hidden;
+}
+
+.dap-beacon-v2.exiting {
+  animation: dap-beacon-out 0.3s cubic-bezier(0.4, 0, 1, 1) both !important;
+}
+
+/* Noise texture */
+.dap-beacon-v2::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: 0.3;
+  z-index: -1;
+}
+
+/* \u2500\u2500 Header \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-beacon-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.dap-beacon-icon-badge {
+  width: 44px; height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--beacon-accent), #9f54f7);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 8px 16px rgba(124, 106, 255, 0.3);
+  position: relative;
+}
+
+.dap-beacon-icon-badge::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border: 2px solid var(--beacon-accent);
+  border-radius: 18px;
+  animation: dap-beacon-ring 2s infinite;
+}
+
+.dap-beacon-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--beacon-text);
+  line-height: 1.3;
+}
+
+/* \u2500\u2500 Content \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-beacon-body {
+  font-size: 14px;
+  color: var(--beacon-muted);
+  line-height: 1.6;
+}
+
+/* \u2500\u2500 Actions \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-beacon-actions {
+  margin-top: 20px;
+  display: flex;
+}
+
+.dap-beacon-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: linear-gradient(135deg, var(--beacon-accent), #9f54f7);
+  color: white;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 6px 16px rgba(124, 106, 255, 0.25);
+}
+
+.dap-beacon-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 10px 24px rgba(124, 106, 255, 0.4);
+}
+
+/* \u2500\u2500 Close \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-beacon-close {
+  position: absolute;
+  top: 12px; right: 12px;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--beacon-border);
+  color: var(--beacon-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.dap-beacon-close:hover {
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.4);
+  color: #f87171;
+  transform: rotate(90deg);
+}
+`;
   function registerBeacon() {
     register("beacon", renderBeacon);
   }
   async function renderBeacon(flow) {
     const { payload, id } = flow;
-    console.debug("[DAP] Beacon initialized", { id, payload });
-    if (!payload.title && !payload.body) {
-      console.error("[DAP] Beacon missing required content (title or body)");
-      payload._completionTracker?.onComplete?.();
-      return;
-    }
-    if (activeBeacons.has(id)) {
-      cleanupBeacon(id);
-    }
+    if (activeBeacons.has(id)) cleanupBeacon(id);
+    ensureBeaconStyles();
     let targetElement;
     if (payload.targetSelector) {
-      try {
-        targetElement = await waitForElement(payload.targetSelector, { timeout: 5e3 });
-        console.debug("[DAP] Beacon target element found", { selector: payload.targetSelector });
-      } catch (e) {
-        console.warn(`[DAP] Beacon: Target element not found for selector: ${payload.targetSelector}`);
-      }
+      const el = resolveSelectorWithPriority(payload.targetSelector);
+      if (el instanceof HTMLElement) targetElement = el;
     }
     const beaconElement = createBeaconElement(payload, id);
-    const beaconState = {
+    const state = {
       id,
       element: beaconElement,
       targetElement,
       cleanup: [],
       isActive: false
     };
-    activeBeacons.set(id, beaconState);
-    showBeacon(beaconState, payload);
-    console.debug("[DAP] Beacon setup complete", { id });
+    activeBeacons.set(id, state);
+    showBeacon(state, payload);
   }
   function createBeaconElement(payload, id) {
     const beacon = document.createElement("div");
-    beacon.className = "dap-beacon";
+    beacon.className = "dap-beacon-v2";
     beacon.id = `dap-beacon-${id}`;
     beacon.setAttribute("role", "alert");
-    beacon.setAttribute("aria-live", "assertive");
-    const position = payload.position || "top-right";
-    const positionStyles = getPositionStyles(position);
-    Object.assign(beacon.style, {
-      position: "fixed",
-      zIndex: "10000",
-      padding: "12px 16px",
-      borderRadius: "16px",
-      background: "rgba(255, 255, 255, 0.95)",
-      border: "2px solid #3b82f6",
-      boxShadow: "0 8px 32px rgba(59, 130, 246, 0.15), 0 4px 16px rgba(0, 0, 0, 0.08)",
-      backdropFilter: "blur(12px)",
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      fontSize: "13px",
-      lineHeight: "1.4",
-      color: "#1e40af",
-      maxWidth: "280px",
-      minWidth: "200px",
-      opacity: "0",
-      transform: "translateY(-10px) scale(0.95)",
-      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-      cursor: "pointer",
-      pointerEvents: "auto",
-      userSelect: "none",
-      ...positionStyles
-    });
-    beacon.style.animation = "dap-beacon-pulse 2s ease-in-out infinite";
-    if (!document.querySelector("#dap-beacon-pulse-styles")) {
-      const pulseStyles = document.createElement("style");
-      pulseStyles.id = "dap-beacon-pulse-styles";
-      pulseStyles.textContent = `
-      @keyframes dap-beacon-pulse {
-        0%, 100% { 
-          box-shadow: 0 8px 32px rgba(59, 130, 246, 0.15), 0 4px 16px rgba(0, 0, 0, 0.08), 0 0 0 0 rgba(59, 130, 246, 0.4);
-        }
-        50% { 
-          box-shadow: 0 8px 32px rgba(59, 130, 246, 0.25), 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 8px rgba(59, 130, 246, 0.1);
-        }
-      }
-      
-      .dap-beacon:hover {
-        transform: translateY(-2px) scale(1.02) !important;
-        box-shadow: 0 12px 40px rgba(59, 130, 246, 0.25), 0 6px 20px rgba(0, 0, 0, 0.12) !important;
-        animation: none !important;
-      }
-    `;
-      document.head.appendChild(pulseStyles);
-    }
+    const header = document.createElement("div");
+    header.className = "dap-beacon-header";
     if (payload.icon) {
-      const icon = document.createElement("span");
-      icon.style.cssText = `
-      display: inline-block;
-      margin-right: 8px;
-      font-size: 18px;
-      vertical-align: middle;
-    `;
-      icon.textContent = payload.icon;
-      beacon.appendChild(icon);
+      const badge = document.createElement("div");
+      badge.className = "dap-beacon-icon-badge";
+      badge.textContent = payload.icon;
+      header.appendChild(badge);
     }
     if (payload.title) {
       const title = document.createElement("div");
-      title.style.cssText = `
-      font-weight: 600;
-      font-size: 15px;
-      color: #78350f;
-      margin-bottom: ${payload.body ? "6px" : "0"};
-      line-height: 1.3;
-    `;
+      title.className = "dap-beacon-title";
       title.textContent = payload.title;
-      beacon.appendChild(title);
+      header.appendChild(title);
     }
+    if (header.childNodes.length > 0) beacon.appendChild(header);
     if (payload.body) {
       const body = document.createElement("div");
-      body.style.cssText = `
-      color: #a16207;
-      line-height: 1.4;
-      font-size: 13px;
-    `;
+      body.className = "dap-beacon-body";
       body.innerHTML = sanitizeHtml(payload.body);
       beacon.appendChild(body);
     }
-    const closeButton = document.createElement("button");
-    closeButton.style.cssText = `
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    background: rgba(59, 130, 246, 0.1);
-    border: none;
-    font-size: 14px;
-    color: #3b82f6;
-    cursor: pointer;
-    padding: 4px 6px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.15s ease;
-    font-weight: 500;
-    width: 24px;
-    height: 24px;
-  `;
-    closeButton.innerHTML = "\xD7";
-    closeButton.title = "Close beacon";
-    closeButton.setAttribute("aria-label", "Close beacon");
-    closeButton.addEventListener("mouseenter", () => {
-      closeButton.style.backgroundColor = "rgba(59, 130, 246, 0.2)";
-      closeButton.style.transform = "scale(1.1)";
-    });
-    closeButton.addEventListener("mouseleave", () => {
-      closeButton.style.backgroundColor = "rgba(59, 130, 246, 0.1)";
-      closeButton.style.transform = "scale(1)";
-    });
-    closeButton.addEventListener("click", (e) => {
+    if (payload.action) {
+      const actions = document.createElement("div");
+      actions.className = "dap-beacon-actions";
+      const btn = document.createElement("button");
+      btn.className = "dap-beacon-btn";
+      btn.textContent = payload.action;
+      btn.addEventListener("click", () => {
+        dismissBeacon(id);
+        window.dispatchEvent(new CustomEvent("dap-beacon-action", {
+          detail: { action: payload.action, beaconId: id }
+        }));
+      });
+      actions.appendChild(btn);
+      beacon.appendChild(actions);
+    }
+    const close = document.createElement("button");
+    close.className = "dap-beacon-close";
+    close.innerHTML = "\xD7";
+    close.title = "Dismiss";
+    close.addEventListener("click", (e) => {
       e.stopPropagation();
       dismissBeacon(id);
     });
-    beacon.appendChild(closeButton);
+    beacon.appendChild(close);
     beacon.__beaconPayload = payload;
     return beacon;
-  }
-  function getPositionStyles(position) {
-    const margin = "20px";
-    switch (position) {
-      case "top-left":
-        return { top: margin, left: margin };
-      case "top-center":
-        return { top: margin, left: "50%", transform: "translateX(-50%) translateY(-20px) scale(0.9)" };
-      case "top-right":
-      default:
-        return { top: margin, right: margin };
-      case "bottom-left":
-        return { bottom: margin, left: margin };
-      case "bottom-center":
-        return { bottom: margin, left: "50%", transform: "translateX(-50%) translateY(20px) scale(0.9)" };
-      case "bottom-right":
-        return { bottom: margin, right: margin };
-      case "center":
-        return {
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%) translateY(-20px) scale(0.9)"
-        };
-    }
   }
   function showBeacon(state, payload) {
     if (state.isActive) return;
     state.isActive = true;
-    console.debug("[DAP] Beacon shown", { id: state.id, hasTarget: !!state.targetElement });
     document.body.appendChild(state.element);
+    const reposition = () => {
+      if (state.targetElement) positionNearElement(state.element, state.targetElement);
+      else applyFixedPosition(state.element, payload.position || "bottom-right");
+    };
     requestAnimationFrame(() => {
+      reposition();
       if (state.targetElement) {
-        const position = payload.position ? parsePosition(payload.position) : { x: "right", y: "center" };
-        console.debug("[DAP] Positioning beacon with position:", position);
-        if (position) {
-          positionBeaconRelativeToElement(state.element, state.targetElement, position);
-        }
-      } else {
-        console.debug("[DAP] No target element, using fallback positioning");
-        const positionStyles = getPositionStyles(payload.position || "top-right");
-        Object.assign(state.element.style, positionStyles);
+        window.addEventListener("scroll", reposition, { passive: true });
+        window.addEventListener("resize", reposition, { passive: true });
+        state.cleanup.push(() => {
+          window.removeEventListener("scroll", reposition);
+          window.removeEventListener("resize", reposition);
+        });
       }
-      applyBeaconAnimation(state.element, payload.beaconStyles);
-      setTimeout(() => {
-        state.element.style.opacity = "1";
-        state.element.style.transform = "scale(1)";
-        console.debug("[DAP] Beacon animation complete");
-      }, 50);
     });
-    const clickHandler = (e) => {
-      const target = e.target;
-      if (!target.closest("button")) {
-        console.debug("[DAP] Beacon clicked", { id: state.id });
-        if (payload.action) {
-          console.debug("[DAP] Executing beacon action", { action: payload.action });
-        }
-        dismissBeacon(state.id);
-      }
+    const onKey = (e) => {
+      if (e.key === "Escape") dismissBeacon(state.id);
     };
-    state.element.addEventListener("click", clickHandler);
-    state.cleanup.push(() => state.element.removeEventListener("click", clickHandler));
-    setupGlobalEventHandlers2(state);
-    if (state.targetElement) {
-      setupPositionObserver(state, payload);
-    }
-    if (payload.autoDismiss && payload.autoDismiss > 0) {
-      setTimeout(() => {
-        dismissBeacon(state.id);
-      }, payload.autoDismiss * 1e3);
+    document.addEventListener("keydown", onKey);
+    state.cleanup.push(() => document.removeEventListener("keydown", onKey));
+    if (payload.autoDismiss) {
+      const timer = setTimeout(() => dismissBeacon(state.id), payload.autoDismiss * 1e3);
+      state.cleanup.push(() => clearTimeout(timer));
     }
   }
-  function applyBeaconAnimation(element, beaconStyles) {
+  function applyFixedPosition(el, pos) {
+    const M = "24px";
     const styles = {
-      enabled: true,
-      color1: "#f59e0b",
-      color2: "#eab308",
-      duration: "2s",
-      padding: "8px",
-      borderWidth: "3px",
-      borderRadius: "16px",
-      shadowSize: "20px",
-      ...beaconStyles
+      "top-left": { top: M, left: M, bottom: "auto", right: "auto" },
+      "top-right": { top: M, right: M, bottom: "auto", left: "auto" },
+      "bottom-left": { bottom: M, left: M, top: "auto", right: "auto" },
+      "bottom-right": { bottom: M, right: M, top: "auto", left: "auto" },
+      "center": { top: "50%", left: "50%", transform: "translate(-50%,-50%)" }
     };
-    if (!styles.enabled) return;
-    const animationId = `beacon-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const style = document.createElement("style");
-    style.dataset.beaconAnimation = animationId;
-    style.textContent = `
-    .dap-beacon[data-beacon-id="${animationId}"]::before {
-      content: '';
-      position: absolute;
-      top: -${styles.padding};
-      left: -${styles.padding};
-      right: -${styles.padding};
-      bottom: -${styles.padding};
-      border: ${styles.borderWidth} solid ${styles.color1};
-      border-radius: ${styles.borderRadius};
-      animation: beaconPulse-${animationId} ${styles.duration} ease-in-out infinite;
-      pointer-events: none;
-      z-index: -1;
-    }
-    
-    @keyframes beaconPulse-${animationId} {
-      0% {
-        border-color: ${styles.color1};
-        box-shadow: 0 0 0 0 ${styles.color1}40, 0 0 ${styles.shadowSize} ${styles.color1}30;
-        transform: scale(1);
-      }
-      50% {
-        border-color: ${styles.color2};
-        box-shadow: 0 0 0 10px ${styles.color2}20, 0 0 ${styles.shadowSize} ${styles.color2}40;
-        transform: scale(1.05);
-      }
-      100% {
-        border-color: ${styles.color1};
-        box-shadow: 0 0 0 0 ${styles.color1}40, 0 0 ${styles.shadowSize} ${styles.color1}30;
-        transform: scale(1);
-      }
-    }
-  `;
-    document.head.appendChild(style);
-    element.setAttribute("data-beacon-id", animationId);
-    const cleanup = () => {
-      if (style.parentNode) {
-        style.parentNode.removeChild(style);
-      }
-    };
-    const beaconId = element.id.replace("dap-beacon-", "");
-    const state = activeBeacons.get(beaconId);
-    if (state) {
-      state.cleanup.push(cleanup);
-    }
+    Object.assign(el.style, styles[pos] || styles["bottom-right"]);
   }
-  function setupGlobalEventHandlers2(state, payload) {
-    const keyHandler = (e) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        dismissBeacon(state.id);
+  function positionNearElement(beacon, target) {
+    const tRect = target.getBoundingClientRect();
+    const bRect = beacon.getBoundingClientRect();
+    const GAP = 12;
+    const VW = window.innerWidth;
+    const VH = window.innerHeight;
+    let left = tRect.right + GAP;
+    let top = tRect.top + (tRect.height - bRect.height) / 2;
+    if (left + bRect.width > VW - 20) {
+      left = tRect.left - bRect.width - GAP;
+      if (left < 20) {
+        left = tRect.left;
+        top = tRect.bottom + GAP;
       }
-    };
-    const navigationHandler = () => {
-      dismissBeacon(state.id);
-    };
-    document.addEventListener("keydown", keyHandler);
-    window.addEventListener("beforeunload", navigationHandler);
-    window.addEventListener("popstate", navigationHandler);
-    state.cleanup.push(() => {
-      document.removeEventListener("keydown", keyHandler);
-      window.removeEventListener("beforeunload", navigationHandler);
-      window.removeEventListener("popstate", navigationHandler);
-    });
+    }
+    beacon.style.left = `${Math.max(20, Math.min(left, VW - bRect.width - 20))}px`;
+    beacon.style.top = `${Math.max(20, Math.min(top, VH - bRect.height - 20))}px`;
   }
   function dismissBeacon(id) {
     const state = activeBeacons.get(id);
-    if (!state || !state.isActive) return;
+    if (!state?.isActive) return;
     state.isActive = false;
-    console.debug("[DAP] Beacon dismissed", { id });
-    state.element.style.opacity = "0";
-    state.element.style.transform = state.element.style.transform.replace(/translateY\([^)]+\)/, "translateY(-20px)").replace(/scale\([^)]+\)/, "scale(0.9)");
-    const beaconElement = state.element;
-    const payloadData = beaconElement.__beaconPayload;
-    if (payloadData?._completionTracker?.onComplete) {
-      payloadData._completionTracker.onComplete();
-    }
-    setTimeout(() => {
-      if (state.element.parentNode) {
-        state.element.parentNode.removeChild(state.element);
-      }
-      cleanupBeacon(id);
-    }, 300);
+    state.element.classList.add("exiting");
+    const payload = state.element.__beaconPayload;
+    payload?._completionTracker?.onComplete?.();
+    setTimeout(() => cleanupBeacon(id), 250);
   }
   function cleanupBeacon(id) {
-    console.debug("[DAP] Beacon destroyed", { id });
     const state = activeBeacons.get(id);
     if (!state) return;
-    state.cleanup.forEach((cleanup) => {
-      try {
-        cleanup();
-      } catch (error) {
-        console.warn("[DAP] Error during beacon cleanup:", error);
-      }
-    });
-    if (state.element && state.element.parentNode) {
-      state.element.parentNode.removeChild(state.element);
-    }
+    state.cleanup.forEach((fn) => fn());
+    state.element.remove();
     activeBeacons.delete(id);
   }
-  function parsePosition(position) {
-    if (typeof position === "object" && position.x && position.y) {
-      return { x: position.x, y: position.y };
+  function ensureBeaconStyles() {
+    if (!document.getElementById("dap-beacon-style-v2")) {
+      const s = document.createElement("style");
+      s.id = "dap-beacon-style-v2";
+      s.textContent = BEACON_STYLES;
+      document.head.appendChild(s);
     }
-    if (typeof position === "string") {
-      switch (position) {
-        case "top-left":
-          return { x: "left", y: "top" };
-        case "top-center":
-          return { x: "center", y: "top" };
-        case "top-right":
-          return { x: "right", y: "top" };
-        case "bottom-left":
-          return { x: "left", y: "bottom" };
-        case "bottom-center":
-          return { x: "center", y: "bottom" };
-        case "bottom-right":
-          return { x: "right", y: "bottom" };
-        case "center":
-          return { x: "center", y: "center" };
-        default:
-          return { x: "center", y: "center" };
-      }
-    }
-    return null;
-  }
-  function positionBeaconRelativeToElement(beaconElement, targetElement, position) {
-    console.debug("[DAP] Starting beacon positioning", {
-      targetElement: targetElement.tagName,
-      targetSelector: targetElement.id || targetElement.className,
-      position
-    });
-    const targetRect = targetElement.getBoundingClientRect();
-    console.debug("[DAP] Target element bounds:", targetRect);
-    beaconElement.style.position = "fixed";
-    beaconElement.style.display = "block";
-    beaconElement.style.visibility = "visible";
-    beaconElement.style.opacity = "0";
-    if (!beaconElement.parentNode) {
-      document.body.appendChild(beaconElement);
-    }
-    beaconElement.offsetHeight;
-    const beaconRect = beaconElement.getBoundingClientRect();
-    console.debug("[DAP] Beacon element bounds:", beaconRect);
-    const spacing = 30;
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    let left = 0;
-    let top = 0;
-    let placement = "right";
-    left = targetRect.right + spacing;
-    top = targetRect.top + (targetRect.height - beaconRect.height) / 2;
-    if (left + beaconRect.width > viewportWidth - 10) {
-      left = targetRect.left - beaconRect.width - spacing;
-      placement = "left";
-      if (left < 10) {
-        left = targetRect.left + (targetRect.width - beaconRect.width) / 2;
-        top = targetRect.bottom + spacing;
-        placement = "bottom";
-        if (top + beaconRect.height > viewportHeight - 10) {
-          top = targetRect.top - beaconRect.height - spacing;
-          placement = "top";
-          if (top < 10) {
-            left = Math.min(targetRect.right + spacing, viewportWidth - beaconRect.width - 10);
-            top = Math.max(10, Math.min(targetRect.top, viewportHeight - beaconRect.height - 10));
-            placement = "right-constrained";
-          }
-        }
-      }
-    }
-    left = Math.max(10, Math.min(left, viewportWidth - beaconRect.width - 10));
-    top = Math.max(10, Math.min(top, viewportHeight - beaconRect.height - 10));
-    console.debug("[DAP] Final beacon position:", {
-      left,
-      top,
-      placement,
-      beaconWidth: beaconRect.width,
-      beaconHeight: beaconRect.height,
-      viewportWidth,
-      viewportHeight
-    });
-    beaconElement.style.left = `${Math.round(left)}px`;
-    beaconElement.style.top = `${Math.round(top)}px`;
-    beaconElement.style.transform = "none";
-    beaconElement.style.zIndex = "10000";
-    beaconElement.setAttribute("data-placement", placement);
-    console.debug("[DAP] Beacon positioned successfully");
-  }
-  function setupPositionObserver(state, payload) {
-    if (!state.targetElement) return;
-    console.debug("[DAP] Setting up position observer for beacon", { id: state.id });
-    let updateTimeout = null;
-    const updatePosition = () => {
-      if (updateTimeout) clearTimeout(updateTimeout);
-      updateTimeout = setTimeout(() => {
-        if (state.targetElement && state.isActive) {
-          const position = payload.position ? parsePosition(payload.position) : { x: "right", y: "center" };
-          console.debug("[DAP] Updating beacon position on scroll");
-          if (position) {
-            positionBeaconRelativeToElement(state.element, state.targetElement, position);
-          }
-        }
-      }, 8);
-    };
-    const intersectionObserver = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          state.element.style.display = "block";
-          updatePosition();
-        } else {
-          state.element.style.display = "none";
-        }
-      });
-    }, { threshold: 0.1 });
-    intersectionObserver.observe(state.targetElement);
-    const handleScroll = () => updatePosition();
-    const handleResize = () => updatePosition();
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("resize", handleResize, { passive: true });
-    document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
-    let scrollableParent = state.targetElement.parentElement;
-    const scrollListeners = [];
-    while (scrollableParent) {
-      const style = window.getComputedStyle(scrollableParent);
-      if (style.overflow === "auto" || style.overflow === "scroll" || style.overflowY === "auto" || style.overflowY === "scroll") {
-        scrollableParent.addEventListener("scroll", handleScroll, { passive: true });
-        scrollListeners.push({ element: scrollableParent, listener: handleScroll });
-      }
-      scrollableParent = scrollableParent.parentElement;
-    }
-    state.cleanup.push(() => {
-      intersectionObserver.disconnect();
-      window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("resize", handleResize);
-      document.removeEventListener("scroll", handleScroll, true);
-      scrollListeners.forEach(({ element, listener }) => {
-        element.removeEventListener("scroll", listener);
-      });
-      if (updateTimeout) clearTimeout(updateTimeout);
-    });
-    console.debug("[DAP] Position observer setup complete");
   }
 
   // src/experiences/banner.ts
   init_registry();
   var bannerCssText = `
+/* Font stack: system fonts are used; no external font requests are made. */
+
 :root {
   --dap-z-banner: 2147483620;
-  --dap-banner-bg-info: #eff6ff;
-  --dap-banner-bg-warning: #fefce8;
-  --dap-banner-bg-error: #fef2f2;
-  --dap-banner-bg-success: #f0f9ff;
-  --dap-banner-text-info: #1e40af;
-  --dap-banner-text-warning: #92400e;
-  --dap-banner-text-error: #dc2626;
-  --dap-banner-text-success: #059669;
-  --dap-banner-border-info: #3b82f6;
-  --dap-banner-border-warning: #f59e0b;
-  --dap-banner-border-error: #ef4444;
-  --dap-banner-border-success: #10b981;
+
+  /* Glassmorphism palette */
+  --dap-glass-blur: blur(20px) saturate(180%);
+  --dap-glass-bg: rgba(255, 255, 255, 0.72);
+  --dap-glass-border: rgba(255, 255, 255, 0.55);
+  --dap-glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+
+  /* Semantic tokens */
+  --dap-banner-info-accent:    #2563EB;
+  --dap-banner-info-tint:      rgba(37, 99, 235, 0.08);
+  --dap-banner-info-glow:      rgba(37, 99, 235, 0.18);
+
+  --dap-banner-warning-accent: #D97706;
+  --dap-banner-warning-tint:   rgba(217, 119, 6, 0.08);
+  --dap-banner-warning-glow:   rgba(217, 119, 6, 0.18);
+
+  --dap-banner-error-accent:   #DC2626;
+  --dap-banner-error-tint:     rgba(220, 38, 38, 0.08);
+  --dap-banner-error-glow:     rgba(220, 38, 38, 0.18);
+
+  --dap-banner-success-accent: #059669;
+  --dap-banner-success-tint:   rgba(5, 150, 105, 0.08);
+  --dap-banner-success-glow:   rgba(5, 150, 105, 0.18);
+
+  --dap-banner-text-primary:   #0F172A;
+  --dap-banner-text-secondary: #475569;
+  --dap-banner-radius: 16px;
+  --dap-banner-font: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
+/* \u2500\u2500 Wrapper \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-banner-wrap {
   position: fixed;
-  left: 0;
-  right: 0;
+  left: 0; right: 0;
   z-index: var(--dap-z-banner);
-  padding: 0 16px;
+  padding: 0 20px;
   pointer-events: none;
+  display: flex;
+  justify-content: center;
 }
+.dap-banner-wrap.top    { top: 20px; }
+.dap-banner-wrap.bottom { bottom: 20px; }
 
-.dap-banner-wrap.top {
-  top: 16px;
-}
-
-.dap-banner-wrap.bottom {
-  bottom: 16px;
-}
-
+/* \u2500\u2500 Banner card \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-banner {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 16px 20px;
-  border-radius: 8px;
-  border-left: 4px solid;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  position: relative;
+  width: auto;
+  min-width: 320px;
+  max-width: 480px;
+  padding: 10px 14px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   gap: 12px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  line-height: 1.5;
+  font-family: var(--dap-banner-font);
   pointer-events: auto;
-  animation: bannerSlideIn 0.3s ease-out;
+  overflow: hidden;
+
+  /* Premium Dark Theme / Glassmorphism */
+  background: rgba(18, 18, 30, 0.9);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 12px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-@keyframes bannerSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* Coloured left accent bar */
+.dap-banner::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: var(--_accent);
+  opacity: 0.8;
+  z-index: 2;
 }
 
-.dap-banner.bottom {
-  animation: bannerSlideInBottom 0.3s ease-out;
+/* Per-variant accent colours */
+.dap-banner.info    { --_accent: #3b82f6; --_tint: rgba(59, 130, 246, 0.1); }
+.dap-banner.warning { --_accent: #f59e0b; --_tint: rgba(245, 158, 11, 0.1); }
+.dap-banner.error   { --_accent: #ef4444; --_tint: rgba(239, 68, 68, 0.1); }
+.dap-banner.success { --_accent: #10b981; --_tint: rgba(16, 185, 129, 0.1); }
+
+/* \u2500\u2500 Content Row \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-banner-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  z-index: 1;
 }
 
-@keyframes bannerSlideInBottom {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.dap-banner.info {
-  background: var(--dap-banner-bg-info);
-  color: var(--dap-banner-text-info);
-  border-color: var(--dap-banner-border-info);
-}
-
-.dap-banner.warning {
-  background: var(--dap-banner-bg-warning);
-  color: var(--dap-banner-text-warning);
-  border-color: var(--dap-banner-border-warning);
-}
-
-.dap-banner.error {
-  background: var(--dap-banner-bg-error);
-  color: var(--dap-banner-text-error);
-  border-color: var(--dap-banner-border-error);
-}
-
-.dap-banner.success {
-  background: var(--dap-banner-bg-success);
-  color: var(--dap-banner-text-success);
-  border-color: var(--dap-banner-border-success);
-}
-
-.dap-banner-icon {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
+.dap-banner-meta {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  font-weight: bold;
+  gap: 8px;
 }
 
-.dap-banner-message {
-  flex: 1;
+.dap-banner-type {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--_accent);
+  padding: 2px 6px;
+  background: var(--_tint);
+  border-radius: 4px;
+}
+
+/* \u2500\u2500 Icon pill \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-banner-icon {
+  flex-shrink: 0;
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  background: var(--_accent);
+  display: flex; align-items: center; justify-content: center;
   font-size: 14px;
-  font-weight: 500;
+  color: #fff;
+  position: relative; z-index: 1;
+  box-shadow: 0 4px 12px var(--_glow, rgba(0,0,0,0.12));
 }
 
+/* \u2500\u2500 Message \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-banner-message {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #f0eeff;
+}
+
+/* \u2500\u2500 Actions \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-banner-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   flex-shrink: 0;
+  position: relative; z-index: 1;
 }
 
 .dap-banner-btn {
-  padding: 6px 12px;
-  border: 1px solid currentColor;
-  border-radius: 4px;
-  background: transparent;
-  color: inherit;
-  font-size: 12px;
-  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  transition: all 0.15s ease;
+  background: var(--_accent);
+  color: #fff;
+  border: none;
+  transition: all 0.2s ease;
 }
 
 .dap-banner-btn:hover {
-  background: currentColor;
-  color: white;
+  filter: brightness(1.1);
+  transform: translateY(-1px);
 }
 
+.dap-banner-btn.secondary {
+  background: rgba(255,255,255,0.05);
+  color: #ccc;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* \u2500\u2500 Close button \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-banner-close {
-  background: none;
+  flex-shrink: 0;
+  background: transparent;
   border: none;
-  color: inherit;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  font-size: 14px;
-  opacity: 0.7;
-  transition: opacity 0.15s ease;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  color: rgba(255,255,255,0.4);
+  transition: all 0.2s ease;
+  z-index: 1;
 }
-
 .dap-banner-close:hover {
-  opacity: 1;
-  background: rgba(0, 0, 0, 0.1);
+  color: #fff;
+  transform: scale(1.1);
 }
 
-@media (max-width: 640px) {
-  .dap-banner-wrap {
-    padding: 0 12px;
-  }
-  
+/* \u2500\u2500 Mobile \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+@media (max-width: 480px) {
   .dap-banner {
-    padding: 14px 16px;
+    min-width: calc(100vw - 40px);
+    margin: 0 10px;
   }
-  
-  .dap-banner-actions {
-    flex-direction: column;
-    gap: 6px;
-  }
-  
-  .dap-banner-btn {
-    font-size: 11px;
-    padding: 4px 8px;
-  }
+}
+
+/* \u2500\u2500 Animations \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-banner-wrap.top .dap-banner {
+  animation: bannerSlideDown 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.dap-banner-wrap.bottom .dap-banner {
+  animation: bannerSlideUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes bannerSlideDown {
+  from { opacity: 0; transform: translateY(-20px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes bannerSlideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes bannerSlideOutTop {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(-12px) scale(0.98); }
+}
+@keyframes bannerSlideOutBottom {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(12px) scale(0.98); }
 }
 `;
+  var VARIANT_ICONS = {
+    info: "\u2139\uFE0F",
+    warning: "\u26A0\uFE0F",
+    error: "\u2715",
+    success: "\u2713"
+  };
   function registerBanner() {
     register("banner", renderBanner);
+    register("alert", renderBanner);
   }
   async function renderBanner(flow) {
     const { payload, id } = flow;
+    ensureStyles4();
     const root = ensureRoot2();
     const completionTracker = payload._completionTracker;
-    const shell = createBannerShell(payload);
-    shell.messageEl.innerHTML = sanitizeHtml(payload.message);
+    const wrap = document.createElement("div");
+    wrap.className = `dap-banner-wrap ${payload.position || "top"}`;
+    const banner = document.createElement("div");
+    const variant = payload.variant || "info";
+    banner.className = `dap-banner ${variant}`;
+    banner.setAttribute("role", "alert");
+    banner.setAttribute("aria-live", "polite");
+    if (payload.theme) {
+      for (const [k, v] of Object.entries(payload.theme)) {
+        banner.style.setProperty(k, v);
+      }
+    }
+    const iconEl = document.createElement("div");
+    iconEl.className = "dap-banner-icon";
+    iconEl.textContent = VARIANT_ICONS[variant] ?? "\u2139\uFE0F";
+    const contentEl = document.createElement("div");
+    contentEl.className = "dap-banner-content";
+    const metaEl = document.createElement("div");
+    metaEl.className = "dap-banner-meta";
+    const typeEl = document.createElement("div");
+    typeEl.className = "dap-banner-type";
+    typeEl.textContent = variant.charAt(0).toUpperCase() + variant.slice(1);
+    metaEl.appendChild(typeEl);
+    contentEl.appendChild(metaEl);
+    const messageEl = document.createElement("div");
+    messageEl.className = "dap-banner-message";
+    messageEl.innerHTML = sanitizeHtml(payload.message);
+    contentEl.appendChild(messageEl);
+    const actionsEl = document.createElement("div");
+    actionsEl.className = "dap-banner-actions";
     if (payload.actions?.length) {
-      payload.actions.forEach((action) => {
-        const btn = document.createElement(action.action === "navigate" ? "a" : "button");
-        btn.className = "dap-banner-btn";
+      payload.actions.forEach((action, idx) => {
+        const tag = action.action === "navigate" ? "a" : "button";
+        const btn = document.createElement(tag);
+        btn.className = `dap-banner-btn${idx > 0 ? " secondary" : ""}`;
         btn.textContent = action.label;
         if (action.action === "navigate" && action.href) {
           btn.href = action.href;
@@ -7636,256 +7789,212 @@ var DAP = (function (exports) {
         } else {
           btn.addEventListener("click", () => {
             if (action.action === "dismiss") {
-              dismissBanner();
+              dismiss();
             } else if (action.action === "custom" && action.customAction) {
               window.dispatchEvent(new CustomEvent("dap-banner-action", {
                 detail: { action: action.customAction, bannerId: id }
               }));
-              dismissBanner();
+              dismiss();
             }
           });
         }
-        shell.actionsEl.appendChild(btn);
+        actionsEl.appendChild(btn);
       });
     }
-    let autoHideTimer;
-    if (payload.autoHide && payload.autoHide > 0) {
-      autoHideTimer = window.setTimeout(() => {
-        dismissBanner();
-      }, payload.autoHide * 1e3);
-    }
-    function dismissBanner() {
-      if (autoHideTimer) {
-        clearTimeout(autoHideTimer);
-      }
-      shell.wrap.style.animation = payload.position === "bottom" ? "bannerSlideOutBottom 0.2s ease-in" : "bannerSlideOut 0.2s ease-in";
-      setTimeout(() => {
-        shell.wrap.remove();
-        if (completionTracker?.onComplete) {
-          console.debug(`[DAP] Completing banner flow: ${id}`);
-          completionTracker.onComplete();
-        }
-      }, 200);
-    }
-    if (payload.dismissible !== false) {
-      shell.closeBtn.addEventListener("click", dismissBanner);
-    } else {
-      shell.closeBtn.style.display = "none";
-    }
-    if (!document.getElementById("dap-banner-dismiss-styles")) {
-      const style = document.createElement("style");
-      style.id = "dap-banner-dismiss-styles";
-      style.textContent = `
-      @keyframes bannerSlideOut {
-        from { opacity: 1; transform: translateY(0); }
-        to { opacity: 0; transform: translateY(-20px); }
-      }
-      @keyframes bannerSlideOutBottom {
-        from { opacity: 1; transform: translateY(0); }
-        to { opacity: 0; transform: translateY(20px); }
-      }
-    `;
-      document.head.appendChild(style);
-    }
-    root.appendChild(shell.wrap);
-    shell.banner.setAttribute("role", "alert");
-    shell.banner.setAttribute("aria-live", "polite");
-  }
-  function createBannerShell(payload) {
-    const wrap = document.createElement("div");
-    wrap.className = `dap-banner-wrap ${payload.position || "top"}`;
-    const banner = document.createElement("div");
-    banner.className = `dap-banner ${payload.variant || "info"}`;
-    if (payload.theme) {
-      for (const [key, value] of Object.entries(payload.theme)) {
-        banner.style.setProperty(key, value);
-      }
-    }
-    const iconEl = document.createElement("div");
-    iconEl.className = "dap-banner-icon";
-    const icons = {
-      info: "\u2139",
-      warning: "\u26A0",
-      error: "\u2715",
-      success: "\u2713"
-    };
-    iconEl.textContent = icons[payload.variant || "info"];
-    const messageEl = document.createElement("div");
-    messageEl.className = "dap-banner-message";
-    const actionsEl = document.createElement("div");
-    actionsEl.className = "dap-banner-actions";
     const closeBtn = document.createElement("button");
     closeBtn.className = "dap-banner-close";
     closeBtn.innerHTML = "\xD7";
     closeBtn.setAttribute("aria-label", "Close banner");
+    if (payload.dismissible === false) {
+      closeBtn.style.display = "none";
+    }
     banner.appendChild(iconEl);
-    banner.appendChild(messageEl);
+    banner.appendChild(contentEl);
     banner.appendChild(actionsEl);
     banner.appendChild(closeBtn);
     wrap.appendChild(banner);
-    return { wrap, banner, iconEl, messageEl, actionsEl, closeBtn };
+    let timer;
+    if (payload.autoHide && payload.autoHide > 0) {
+      timer = window.setTimeout(dismiss, payload.autoHide * 1e3);
+    }
+    let _bannerDone = false;
+    function dismiss() {
+      if (_bannerDone) return;
+      _bannerDone = true;
+      if (timer) clearTimeout(timer);
+      const isBottom = payload.position === "bottom";
+      wrap.style.animation = isBottom ? "bannerSlideOutBottom 0.22s cubic-bezier(0.4,0,1,1) both" : "bannerSlideOutTop 0.22s cubic-bezier(0.4,0,1,1) both";
+      setTimeout(() => {
+        wrap.remove();
+        completionTracker?.onComplete?.();
+      }, 240);
+    }
+    closeBtn.addEventListener("click", dismiss);
+    root.appendChild(wrap);
+  }
+  function ensureStyles4() {
+    if (!document.getElementById("dap-banner-style-v2")) {
+      const s = document.createElement("style");
+      s.id = "dap-banner-style-v2";
+      s.textContent = bannerCssText;
+      document.head.appendChild(s);
+    }
   }
   function ensureRoot2() {
     let host = document.querySelector("dap-banner-root");
     if (!host) {
       host = document.createElement("dap-banner-root");
-      host.style.position = "fixed";
-      host.style.zIndex = "2147483620";
-      host.style.inset = "0";
-      host.style.pointerEvents = "none";
+      Object.assign(host.style, {
+        position: "fixed",
+        zIndex: "2147483620",
+        inset: "0",
+        pointerEvents: "none"
+      });
       document.documentElement.appendChild(host);
-      if (!host.shadowRoot && !document.getElementById("dap-banner-style")) {
-        const style = document.createElement("style");
-        style.id = "dap-banner-style";
-        style.textContent = bannerCssText;
-        document.head.appendChild(style);
-      }
     }
     return host;
   }
 
   // src/experiences/hotspots.ts
   init_registry();
-  init_triggerNormalizer();
   var hotspotsCssText = `
+/* Font stack: system fonts are used; no external font requests are made. */
+
 :root {
   --dap-z-hotspots: 2147483630;
-  --dap-hotspot-primary: #3b82f6;
-  --dap-hotspot-bg: #ffffff;
-  --dap-hotspot-border: #e2e8f0;
-  --dap-hotspot-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-  --dap-hotspot-text: #1e293b;
-  --dap-hotspot-text-muted: #64748b;
+  --hs-primary:   #6366F1;
+  --hs-success:   #10B981;
+  --hs-required:  #F59E0B;
+  --hs-bg:        rgba(255,255,255,0.95);
+  --hs-border:    rgba(99,102,241,0.22);
+  --hs-text:      #0F172A;
+  --hs-muted:     #64748B;
+  --hs-shadow:    0 16px 48px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
+  --hs-font:      system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --hs-radius:    16px;
 }
 
+/* \u2500\u2500 Overlay \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-hotspots-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.4);
+  background: rgba(2, 6, 23, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   z-index: var(--dap-z-hotspots);
   pointer-events: none;
   opacity: 0;
-  animation: hotspotsOverlayFadeIn 0.3s ease-out forwards;
+  animation: hs-fade-in 0.35s ease forwards;
 }
+@keyframes hs-fade-in  { to { opacity: 1; } }
+@keyframes hs-fade-out { from { opacity: 1; } to { opacity: 0; } }
 
-@keyframes hotspotsOverlayFadeIn {
-  to { opacity: 1; }
-}
-
+/* \u2500\u2500 Marker (pulsing dot) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-hotspot-marker {
   position: absolute;
-  width: 24px;
-  height: 24px;
-  background: var(--dap-hotspot-primary);
-  border: 3px solid white;
+  width: 28px; height: 28px;
+  background: var(--hs-primary);
+  border: 2.5px solid #fff;
   border-radius: 50%;
   cursor: pointer;
   z-index: calc(var(--dap-z-hotspots) + 1);
-  animation: hotspotPulse 2s infinite;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 14px rgba(99,102,241,0.40);
+  transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1),
+              background 0.2s ease,
+              box-shadow 0.2s ease;
+}
+/* Animated ring */
+.dap-hotspot-marker::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 2px solid var(--hs-primary);
+  animation: hs-ring 2.4s cubic-bezier(0.4,0,0.6,1) infinite;
+  opacity: 0;
+}
+@keyframes hs-ring {
+  0%   { transform: scale(1);   opacity: 0.6; }
+  100% { transform: scale(2.1); opacity: 0; }
 }
 
 .dap-hotspot-marker:hover {
-  transform: scale(1.1);
-  animation-play-state: paused;
+  transform: scale(1.18);
+  box-shadow: 0 6px 20px rgba(99,102,241,0.55);
 }
-
 .dap-hotspot-marker.completed {
-  background: #10b981;
+  background: var(--hs-success);
+  box-shadow: 0 4px 14px rgba(16,185,129,0.35);
   animation: none;
 }
-
+.dap-hotspot-marker.completed::before { display: none; }
 .dap-hotspot-marker.required {
-  background: #f59e0b;
-  animation-duration: 1.5s;
+  background: var(--hs-required);
+  box-shadow: 0 4px 14px rgba(245,158,11,0.35);
+}
+/* Checkmark inside completed marker */
+.dap-hotspot-marker.completed::after {
+  content: '\u2713';
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: #fff; font-weight: 700;
 }
 
-@keyframes hotspotPulse {
-  0% {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), 0 0 0 0 rgba(59, 130, 246, 0.7);
-  }
-  70% {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), 0 0 0 10px rgba(59, 130, 246, 0);
-  }
-  100% {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), 0 0 0 0 rgba(59, 130, 246, 0);
-  }
-}
-
+/* \u2500\u2500 Tooltip \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-hotspot-tooltip {
   position: absolute;
-  background: var(--dap-hotspot-bg);
-  border: 1px solid var(--dap-hotspot-border);
-  border-radius: 8px;
-  box-shadow: var(--dap-hotspot-shadow);
-  padding: 16px;
+  background: var(--hs-bg);
+  border: 1.5px solid var(--hs-border);
+  border-radius: var(--hs-radius);
+  box-shadow: var(--hs-shadow);
+  padding: 20px 22px 16px;
   max-width: 320px;
+  min-width: 240px;
   z-index: calc(var(--dap-z-hotspots) + 2);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--hs-font);
   opacity: 0;
-  transform: scale(0.9);
-  animation: hotspotTooltipIn 0.2s ease-out forwards;
+  transform: scale(0.92) translateY(6px);
+  animation: hs-tooltip-in 0.25s cubic-bezier(0.22,1,0.36,1) forwards;
   pointer-events: auto;
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+@keyframes hs-tooltip-in {
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-@keyframes hotspotTooltipIn {
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
+/* Arrow */
 .dap-hotspot-tooltip::before {
   content: '';
   position: absolute;
-  width: 0;
-  height: 0;
-  border: 8px solid transparent;
+  width: 12px; height: 12px;
+  background: var(--hs-bg);
+  border: 1.5px solid var(--hs-border);
+  transform: rotate(45deg);
 }
+.dap-hotspot-tooltip.top::before    { bottom:-7px; left:50%; margin-left:-6px; border-top:none; border-left:none; }
+.dap-hotspot-tooltip.bottom::before { top:-7px;   left:50%; margin-left:-6px; border-bottom:none; border-right:none; }
+.dap-hotspot-tooltip.left::before   { right:-7px; top:50%;  margin-top:-6px;  border-left:none; border-bottom:none; }
+.dap-hotspot-tooltip.right::before  { left:-7px;  top:50%;  margin-top:-6px;  border-right:none; border-top:none; }
 
-.dap-hotspot-tooltip.top::before {
-  bottom: -16px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-top-color: var(--dap-hotspot-bg);
-}
-
-.dap-hotspot-tooltip.bottom::before {
-  top: -16px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-bottom-color: var(--dap-hotspot-bg);
-}
-
-.dap-hotspot-tooltip.left::before {
-  right: -16px;
-  top: 50%;
-  transform: translateY(-50%);
-  border-left-color: var(--dap-hotspot-bg);
-}
-
-.dap-hotspot-tooltip.right::before {
-  left: -16px;
-  top: 50%;
-  transform: translateY(-50%);
-  border-right-color: var(--dap-hotspot-bg);
-}
-
+/* Tooltip title */
 .dap-hotspot-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
-  color: var(--dap-hotspot-text);
-  margin: 0 0 8px 0;
+  color: var(--hs-text);
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
 }
 
+/* Tooltip description */
 .dap-hotspot-description {
-  font-size: 14px;
-  color: var(--dap-hotspot-text-muted);
-  line-height: 1.4;
-  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: var(--hs-muted);
+  line-height: 1.55;
+  margin: 0 0 16px;
 }
 
+/* Tooltip actions */
 .dap-hotspot-actions {
   display: flex;
   gap: 8px;
@@ -7893,114 +8002,106 @@ var DAP = (function (exports) {
 }
 
 .dap-hotspot-btn {
-  padding: 6px 12px;
-  border: 1px solid var(--dap-hotspot-primary);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--dap-hotspot-primary);
-  font-size: 12px;
-  font-weight: 500;
+  padding: 7px 16px;
+  border-radius: 10px;
+  font-family: var(--hs-font);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.16s ease;
+  letter-spacing: -0.01em;
+  border: none;
+  background: var(--hs-primary);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.30);
 }
-
 .dap-hotspot-btn:hover {
-  background: var(--dap-hotspot-primary);
-  color: white;
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(99,102,241,0.40);
 }
 
-.dap-hotspot-btn.primary {
-  background: var(--dap-hotspot-primary);
-  color: white;
-}
-
-.dap-hotspot-btn.primary:hover {
-  background: #2563eb;
-  border-color: #2563eb;
-}
-
+/* \u2500\u2500 Progress pill \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-hotspots-progress {
   position: fixed;
-  top: 20px;
-  right: 20px;
-  background: var(--dap-hotspot-bg);
-  border: 1px solid var(--dap-hotspot-border);
-  border-radius: 8px;
-  padding: 12px 16px;
+  top: 20px; right: 20px;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1.5px solid rgba(99,102,241,0.18);
+  border-radius: 14px;
+  padding: 12px 18px;
   z-index: calc(var(--dap-z-hotspots) + 1);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  box-shadow: var(--dap-hotspot-shadow);
-  animation: hotspotProgressIn 0.3s ease-out forwards;
+  font-family: var(--hs-font);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
   opacity: 0;
+  animation: hs-fade-in 0.35s 0.1s ease forwards;
+  min-width: 170px;
 }
-
-@keyframes hotspotProgressIn {
-  to { opacity: 1; }
+.dap-hotspots-progress-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--hs-primary);
+  margin-bottom: 6px;
 }
-
 .dap-hotspots-progress-text {
-  font-size: 14px;
-  color: var(--dap-hotspot-text);
-  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--hs-text);
+  margin-bottom: 8px;
 }
-
 .dap-hotspots-progress-bar {
-  width: 120px;
-  height: 4px;
-  background: var(--dap-hotspot-border);
-  border-radius: 2px;
+  width: 100%;
+  height: 5px;
+  background: rgba(99,102,241,0.12);
+  border-radius: 99px;
   overflow: hidden;
 }
-
 .dap-hotspots-progress-fill {
   height: 100%;
-  background: var(--dap-hotspot-primary);
-  border-radius: 2px;
-  transition: width 0.3s ease;
+  background: linear-gradient(90deg, var(--hs-primary), #818CF8);
+  border-radius: 99px;
+  transition: width 0.4s cubic-bezier(0.22,1,0.36,1);
   width: 0%;
 }
 
+/* \u2500\u2500 Skip button \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-hotspots-controls {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
-  display: flex;
-  gap: 8px;
+  bottom: 24px; right: 24px;
   z-index: calc(var(--dap-z-hotspots) + 1);
+  opacity: 0;
+  animation: hs-fade-in 0.35s 0.2s ease forwards;
 }
-
 .dap-hotspots-skip {
-  padding: 8px 16px;
-  background: var(--dap-hotspot-bg);
-  border: 1px solid var(--dap-hotspot-border);
-  border-radius: 6px;
-  color: var(--dap-hotspot-text);
-  font-size: 14px;
+  padding: 10px 20px;
+  background: rgba(255,255,255,0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1.5px solid rgba(0,0,0,0.10);
+  border-radius: 12px;
+  color: var(--hs-muted);
+  font-family: var(--hs-font);
+  font-size: 13.5px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
-  box-shadow: var(--dap-hotspot-shadow);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  transition: all 0.18s ease;
 }
-
 .dap-hotspots-skip:hover {
-  background: var(--dap-hotspot-border);
+  background: #fff;
+  color: var(--hs-text);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+  transform: translateY(-1px);
 }
 
+/* \u2500\u2500 Mobile \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 @media (max-width: 640px) {
-  .dap-hotspots-progress {
-    top: 10px;
-    right: 10px;
-    padding: 8px 12px;
-  }
-  
-  .dap-hotspots-controls {
-    bottom: 10px;
-    right: 10px;
-  }
-  
-  .dap-hotspot-tooltip {
-    max-width: 280px;
-    padding: 12px;
-  }
+  .dap-hotspots-progress { top: 12px; right: 12px; padding: 10px 14px; }
+  .dap-hotspots-controls { bottom: 14px; right: 14px; }
+  .dap-hotspot-tooltip   { max-width: 280px; padding: 16px 18px 14px; }
 }
 `;
   function registerHotspots() {
@@ -8009,7 +8110,7 @@ var DAP = (function (exports) {
   async function renderHotspots(flow) {
     const { payload, id } = flow;
     const completionTracker = payload._completionTracker;
-    ensureStyles3();
+    ensureStyles5();
     const completedHotspots = /* @__PURE__ */ new Set();
     let currentTooltip = null;
     const overlay = document.createElement("div");
@@ -8017,508 +8118,474 @@ var DAP = (function (exports) {
     document.documentElement.appendChild(overlay);
     let progressEl = null;
     if (payload.showProgress) {
-      progressEl = createProgressIndicator(payload);
+      progressEl = buildProgressEl(payload);
       document.documentElement.appendChild(progressEl);
     }
     let skipEl = null;
     if (payload.allowSkip) {
-      skipEl = createSkipControls();
+      skipEl = buildSkipEl();
       document.documentElement.appendChild(skipEl);
-      skipEl.addEventListener("click", completeHotspots);
+      skipEl.querySelector("button").addEventListener("click", completeHotspots);
     }
     const markers = [];
-    const waitForElements = payload.hotspots.map(async (hotspot) => {
+    const tasks = payload.hotspots.map(async (hotspot) => {
       try {
-        const element = await waitForElement2(hotspot.selector, { timeout: 2e3 });
-        if (element && element instanceof HTMLElement) {
-          createHotspotMarker(hotspot, element);
-        }
-      } catch (error) {
-        console.warn(`[DAP] Failed to find element for hotspot: ${hotspot.selector}`);
+        const el = await waitForElement(hotspot.selector, { timeout: 2500 });
+        if (el instanceof HTMLElement) placeMarker(hotspot, el);
+      } catch {
+        console.warn(`[DAP] Hotspot target not found: ${hotspot.selector}`);
       }
     });
-    await Promise.allSettled(waitForElements);
-    function createHotspotMarker(hotspot, element) {
-      const rect = element.getBoundingClientRect();
+    await Promise.allSettled(tasks);
+    if (progressEl) updateProgress();
+    function placeMarker(hotspot, el) {
+      const rect = el.getBoundingClientRect();
       const marker = document.createElement("div");
       marker.className = "dap-hotspot-marker";
       marker.dataset.hotspotId = hotspot.id;
-      if (hotspot.required) {
-        marker.classList.add("required");
-      }
-      if (hotspot.pulseColor) {
-        marker.style.background = hotspot.pulseColor;
-      }
-      marker.style.left = `${rect.left + window.scrollX + rect.width / 2 - 12}px`;
-      marker.style.top = `${rect.top + window.scrollY + rect.height / 2 - 12}px`;
-      marker.addEventListener("click", () => showTooltip(hotspot, marker, element));
+      if (hotspot.required) marker.classList.add("required");
+      if (hotspot.pulseColor) marker.style.background = hotspot.pulseColor;
+      marker.style.left = `${rect.left + window.scrollX + rect.width / 2 - 14}px`;
+      marker.style.top = `${rect.top + window.scrollY + rect.height / 2 - 14}px`;
+      marker.addEventListener("click", () => showTooltip(hotspot, marker));
       document.documentElement.appendChild(marker);
       markers.push(marker);
     }
-    function showTooltip(hotspot, marker, element) {
-      if (currentTooltip) {
-        currentTooltip.remove();
-      }
+    function showTooltip(hotspot, marker, el) {
+      currentTooltip?.remove();
       const tooltip = document.createElement("div");
       tooltip.className = "dap-hotspot-tooltip";
       const title = document.createElement("h3");
       title.className = "dap-hotspot-title";
       title.textContent = hotspot.title;
-      const description = document.createElement("div");
-      description.className = "dap-hotspot-description";
-      description.innerHTML = sanitizeHtml(hotspot.description);
+      const desc = document.createElement("div");
+      desc.className = "dap-hotspot-description";
+      desc.innerHTML = sanitizeHtml(hotspot.description);
       const actions = document.createElement("div");
       actions.className = "dap-hotspot-actions";
-      const gotItBtn = document.createElement("button");
-      gotItBtn.className = "dap-hotspot-btn primary";
-      gotItBtn.textContent = "Got it!";
-      gotItBtn.addEventListener("click", () => {
-        markHotspotCompleted(hotspot, marker);
+      const gotIt = document.createElement("button");
+      gotIt.className = "dap-hotspot-btn";
+      gotIt.textContent = "Got it \u2713";
+      gotIt.addEventListener("click", () => {
+        markDone(hotspot, marker);
         tooltip.remove();
         currentTooltip = null;
       });
-      actions.appendChild(gotItBtn);
-      tooltip.appendChild(title);
-      tooltip.appendChild(description);
-      tooltip.appendChild(actions);
-      positionTooltip(tooltip, marker, element, hotspot.placement || "top");
+      actions.append(gotIt);
+      tooltip.append(title, desc, actions);
+      positionTooltip(tooltip, marker, hotspot.placement || "top");
       document.documentElement.appendChild(tooltip);
       currentTooltip = tooltip;
       setTimeout(() => {
-        const closeOnOutside = (e) => {
+        const outside = (e) => {
           if (!tooltip.contains(e.target) && !marker.contains(e.target)) {
             tooltip.remove();
             currentTooltip = null;
-            document.removeEventListener("click", closeOnOutside);
+            document.removeEventListener("click", outside);
           }
         };
-        document.addEventListener("click", closeOnOutside);
-      }, 100);
+        document.addEventListener("click", outside);
+      }, 120);
     }
-    function positionTooltip(tooltip, marker, element, placement) {
-      element.getBoundingClientRect();
-      const markerRect = marker.getBoundingClientRect();
+    function positionTooltip(tooltip, marker, placement) {
+      const mRect = marker.getBoundingClientRect();
       tooltip.classList.add(placement);
-      let left = 0;
-      let top = 0;
+      const W = 320;
+      const H = 140;
+      let left = 0, top = 0;
+      const GAP = 18;
       switch (placement) {
         case "top":
-          left = markerRect.left - 160 + markerRect.width / 2;
-          top = markerRect.top - 16 - 120;
+          left = mRect.left - W / 2 + 14;
+          top = mRect.top - GAP - H;
           break;
         case "bottom":
-          left = markerRect.left - 160 + markerRect.width / 2;
-          top = markerRect.bottom + 16;
+          left = mRect.left - W / 2 + 14;
+          top = mRect.bottom + GAP;
           break;
         case "left":
-          left = markerRect.left - 320 - 16;
-          top = markerRect.top - 60 + markerRect.height / 2;
+          left = mRect.left - W - GAP;
+          top = mRect.top - H / 2 + 14;
           break;
         case "right":
-          left = markerRect.right + 16;
-          top = markerRect.top - 60 + markerRect.height / 2;
+          left = mRect.right + GAP;
+          top = mRect.top - H / 2 + 14;
           break;
         default:
-          left = markerRect.left - 160 + markerRect.width / 2;
-          top = markerRect.top - 16 - 120;
+          left = mRect.left - W / 2 + 14;
+          top = mRect.top - GAP - H;
       }
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      left = Math.max(10, Math.min(left, viewportWidth - 330));
-      top = Math.max(10, Math.min(top, viewportHeight - 150));
+      const VW = window.innerWidth, VH = window.innerHeight;
+      left = Math.max(10, Math.min(left, VW - W - 10));
+      top = Math.max(10, Math.min(top, VH - H - 10));
       tooltip.style.left = `${left + window.scrollX}px`;
       tooltip.style.top = `${top + window.scrollY}px`;
     }
-    function markHotspotCompleted(hotspot, marker) {
+    function markDone(hotspot, marker) {
       completedHotspots.add(hotspot.id);
       marker.classList.add("completed");
-      if (progressEl) {
-        updateProgress();
-      }
-      const requiredHotspots = payload.hotspots.filter((h) => h.required);
-      const completedRequired = requiredHotspots.filter((h) => completedHotspots.has(h.id));
-      if (completedRequired.length === requiredHotspots.length) {
+      if (progressEl) updateProgress();
+      const required = payload.hotspots.filter((h) => h.required);
+      const doneReq = required.filter((h) => completedHotspots.has(h.id));
+      if (doneReq.length === required.length) {
         setTimeout(() => {
-          if (canComplete()) {
-            completeHotspots();
-          }
-        }, 1e3);
+          if (canComplete()) completeHotspots();
+        }, 800);
       }
     }
     function updateProgress() {
       if (!progressEl) return;
       const total = payload.hotspots.length;
-      const completed = completedHotspots.size;
-      const percentage = completed / total * 100;
-      const progressText = progressEl.querySelector(".dap-hotspots-progress-text");
-      const progressFill = progressEl.querySelector(".dap-hotspots-progress-fill");
-      if (progressText) {
-        progressText.textContent = `${completed} / ${total} explored`;
-      }
-      if (progressFill) {
-        progressFill.style.width = `${percentage}%`;
-      }
+      const done = completedHotspots.size;
+      const pct = Math.round(done / total * 100);
+      const text = progressEl.querySelector(".dap-hotspots-progress-text");
+      const fill = progressEl.querySelector(".dap-hotspots-progress-fill");
+      if (text) text.textContent = `${done} of ${total} explored`;
+      if (fill) fill.style.width = `${pct}%`;
     }
     function canComplete() {
-      const requiredHotspots = payload.hotspots.filter((h) => h.required);
-      return requiredHotspots.every((h) => completedHotspots.has(h.id));
+      return payload.hotspots.filter((h) => h.required).every((h) => completedHotspots.has(h.id));
     }
+    let _hotspotsDone = false;
     function completeHotspots() {
+      if (_hotspotsDone) return;
+      _hotspotsDone = true;
+      document.removeEventListener("keydown", onHotspotsKey);
       overlay.remove();
-      markers.forEach((marker) => marker.remove());
-      if (currentTooltip) {
-        currentTooltip.remove();
-      }
-      if (progressEl) {
-        progressEl.remove();
-      }
-      if (skipEl) {
-        skipEl.remove();
-      }
-      if (completionTracker?.onComplete) {
-        console.debug(`[DAP] Completing hotspots flow: ${id}`);
-        completionTracker.onComplete();
-      }
+      markers.forEach((m) => m.remove());
+      currentTooltip?.remove();
+      progressEl?.remove();
+      skipEl?.remove();
+      completionTracker?.onComplete?.();
     }
-    document.addEventListener("keydown", (e) => {
+    function onHotspotsKey(e) {
       if (e.key === "Escape") {
         if (currentTooltip) {
           currentTooltip.remove();
           currentTooltip = null;
-        } else if (payload.allowSkip) {
-          completeHotspots();
-        }
+        } else if (payload.allowSkip) completeHotspots();
       }
-    });
-    if (progressEl) {
-      updateProgress();
     }
+    document.addEventListener("keydown", onHotspotsKey);
   }
-  function createProgressIndicator(payload) {
-    const progress = document.createElement("div");
-    progress.className = "dap-hotspots-progress";
-    const text = document.createElement("div");
-    text.className = "dap-hotspots-progress-text";
-    text.textContent = "0 / " + payload.hotspots.length + " explored";
-    const bar = document.createElement("div");
-    bar.className = "dap-hotspots-progress-bar";
-    const fill = document.createElement("div");
-    fill.className = "dap-hotspots-progress-fill";
-    bar.appendChild(fill);
-    progress.appendChild(text);
-    progress.appendChild(bar);
-    return progress;
+  function buildProgressEl(payload) {
+    const el = document.createElement("div");
+    el.className = "dap-hotspots-progress";
+    el.innerHTML = `
+    <div class="dap-hotspots-progress-label">Progress</div>
+    <div class="dap-hotspots-progress-text">0 of ${payload.hotspots.length} explored</div>
+    <div class="dap-hotspots-progress-bar">
+      <div class="dap-hotspots-progress-fill"></div>
+    </div>`;
+    return el;
   }
-  function createSkipControls() {
-    const controls = document.createElement("div");
-    controls.className = "dap-hotspots-controls";
-    const skipBtn = document.createElement("button");
-    skipBtn.className = "dap-hotspots-skip";
-    skipBtn.textContent = "Skip tour";
-    controls.appendChild(skipBtn);
-    return controls;
+  function buildSkipEl() {
+    const el = document.createElement("div");
+    el.className = "dap-hotspots-controls";
+    const btn = document.createElement("button");
+    btn.className = "dap-hotspots-skip";
+    btn.textContent = "Skip tour";
+    el.appendChild(btn);
+    return el;
   }
-  function ensureStyles3() {
-    if (!document.getElementById("dap-hotspots-style")) {
-      const style = document.createElement("style");
-      style.id = "dap-hotspots-style";
-      style.textContent = hotspotsCssText;
-      document.head.appendChild(style);
+  function ensureStyles5() {
+    if (!document.getElementById("dap-hotspots-style-v2")) {
+      const s = document.createElement("style");
+      s.id = "dap-hotspots-style-v2";
+      s.textContent = hotspotsCssText;
+      document.head.appendChild(s);
     }
   }
 
   // src/experiences/hotspotTour.ts
   init_registry();
-  init_triggerNormalizer();
   var hotspotTourCssText = `
+/* Font stack: system fonts are used; no external font requests are made. */
+
 :root {
   --dap-z-tour: 2147483635;
-  --dap-tour-primary: #3b82f6;
-  --dap-tour-bg: #ffffff;
-  --dap-tour-border: #e2e8f0;
-  --dap-tour-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-  --dap-tour-text: #1e293b;
-  --dap-tour-text-muted: #64748b;
-  --dap-tour-overlay: rgba(15, 23, 42, 0.5);
+  --tour-primary:  #6366F1;
+  --tour-primary2: #818CF8;
+  --tour-bg:       rgba(255,255,255,0.96);
+  --tour-overlay:  rgba(2, 6, 23, 0.62);
+  --tour-border:   rgba(99,102,241,0.20);
+  --tour-text:     #0F172A;
+  --tour-muted:    #64748B;
+  --tour-shadow:   0 20px 60px rgba(0,0,0,0.14), 0 6px 18px rgba(0,0,0,0.07);
+  --tour-font:     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --tour-radius:   18px;
 }
 
+/* \u2500\u2500 Overlay \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-tour-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--dap-tour-overlay);
+  position: fixed; inset: 0;
+  background: var(--tour-overlay);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: var(--dap-z-tour);
   pointer-events: none;
   opacity: 0;
-  animation: tourOverlayFadeIn 0.3s ease-out forwards;
+  animation: tour-fade-in 0.3s ease forwards;
 }
+@keyframes tour-fade-in  { to { opacity: 1; } }
 
-@keyframes tourOverlayFadeIn {
-  to { opacity: 1; }
-}
-
+/* \u2500\u2500 Spotlight \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-tour-spotlight {
   position: absolute;
-  border: 3px solid var(--dap-tour-primary);
-  border-radius: 8px;
+  border: 2.5px solid var(--tour-primary);
+  border-radius: 12px;
   pointer-events: none;
   z-index: calc(var(--dap-z-tour) + 1);
-  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.5);
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  animation: tourSpotlightPulse 2s ease-in-out infinite;
+  box-shadow:
+    0 0 0 9999px rgba(2,6,23,0.62),
+    0 0 0 6px rgba(99,102,241,0.15),
+    0 0 30px rgba(99,102,241,0.35);
+  transition: all 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: tour-spotlight-pulse 2.5s ease-in-out infinite;
+}
+@keyframes tour-spotlight-pulse {
+  0%,100% {
+    border-color: var(--tour-primary);
+    box-shadow: 0 0 0 9999px rgba(2,6,23,0.62), 0 0 0 6px rgba(99,102,241,0.15), 0 0 30px rgba(99,102,241,0.35);
+  }
+  50% {
+    border-color: var(--tour-primary2);
+    box-shadow: 0 0 0 9999px rgba(2,6,23,0.55), 0 0 0 8px rgba(129,140,248,0.20), 0 0 40px rgba(129,140,248,0.50);
+  }
 }
 
-@keyframes tourSpotlightPulse {
-  0%, 100% { 
-    border-color: var(--dap-tour-primary);
-    box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.5), 0 0 20px rgba(59, 130, 246, 0.3);
-  }
-  50% { 
-    border-color: #60a5fa;
-    box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.4), 0 0 30px rgba(59, 130, 246, 0.5);
-  }
-}
-
+/* \u2500\u2500 Tooltip card \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-tour-tooltip {
   position: absolute;
-  background: var(--dap-tour-bg);
-  border: 1px solid var(--dap-tour-border);
-  border-radius: 12px;
-  box-shadow: var(--dap-tour-shadow);
-  padding: 20px;
-  max-width: 360px;
+  background: var(--tour-bg);
+  border: 1.5px solid var(--tour-border);
+  border-radius: var(--tour-radius);
+  box-shadow: var(--tour-shadow);
+  padding: 24px 24px 20px;
+  max-width: 380px;
+  min-width: 280px;
   z-index: calc(var(--dap-z-tour) + 2);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--tour-font);
   opacity: 0;
-  transform: scale(0.9);
-  animation: tourTooltipIn 0.3s ease-out 0.2s forwards;
+  transform: scale(0.92) translateY(8px);
+  animation: tour-tooltip-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards;
   pointer-events: auto;
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+}
+/* Top gradient sheen */
+.dap-tour-tooltip::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: var(--tour-radius);
+  background: linear-gradient(150deg, rgba(255,255,255,0.60) 0%, transparent 50%);
+  pointer-events: none;
+}
+@keyframes tour-tooltip-in {
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-@keyframes tourTooltipIn {
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
+/* Arrow */
 .dap-tour-tooltip::before {
   content: '';
   position: absolute;
-  width: 0;
-  height: 0;
-  border: 12px solid transparent;
+  width: 13px; height: 13px;
+  background: var(--tour-bg);
+  border: 1.5px solid var(--tour-border);
+  transform: rotate(45deg);
+  z-index: 1;
 }
+.dap-tour-tooltip.top::before    { bottom: -8px; left: 50%; margin-left: -7px; border-top: none; border-left: none; }
+.dap-tour-tooltip.bottom::before { top: -8px;    left: 50%; margin-left: -7px; border-bottom: none; border-right: none; }
+.dap-tour-tooltip.left::before   { right: -8px;  top: 50%;  margin-top: -7px;  border-left: none; border-bottom: none; }
+.dap-tour-tooltip.right::before  { left: -8px;   top: 50%;  margin-top: -7px;  border-right: none; border-top: none; }
 
-.dap-tour-tooltip.top::before {
-  bottom: -24px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-top-color: var(--dap-tour-bg);
-}
-
-.dap-tour-tooltip.bottom::before {
-  top: -24px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-bottom-color: var(--dap-tour-bg);
-}
-
-.dap-tour-tooltip.left::before {
-  right: -24px;
-  top: 50%;
-  transform: translateY(-50%);
-  border-left-color: var(--dap-tour-bg);
-}
-
-.dap-tour-tooltip.right::before {
-  left: -24px;
-  top: 50%;
-  transform: translateY(-50%);
-  border-right-color: var(--dap-tour-bg);
-}
-
+/* \u2500\u2500 Tooltip header \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-tour-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 10px;
+  position: relative; z-index: 2;
 }
-
 .dap-tour-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--dap-tour-text);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--tour-text);
   margin: 0;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+.dap-tour-step-badge {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--tour-primary);
+  background: rgba(99,102,241,0.10);
+  padding: 3px 10px;
+  border-radius: 99px;
+  white-space: nowrap;
+  margin-top: 2px;
+  letter-spacing: 0.01em;
 }
 
-.dap-tour-step-indicator {
-  font-size: 12px;
-  color: var(--dap-tour-text-muted);
-  background: var(--dap-tour-border);
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-weight: 500;
-}
-
+/* \u2500\u2500 Description \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-tour-description {
-  font-size: 14px;
-  color: var(--dap-tour-text-muted);
-  line-height: 1.5;
-  margin: 0 0 16px 0;
+  font-size: 13.5px;
+  color: var(--tour-muted);
+  line-height: 1.6;
+  margin: 0 0 20px;
+  position: relative; z-index: 2;
 }
 
+/* \u2500\u2500 Actions \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-tour-actions {
   display: flex;
-  gap: 8px;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
+  position: relative; z-index: 2;
 }
-
 .dap-tour-nav {
   display: flex;
   gap: 8px;
 }
 
 .dap-tour-btn {
-  padding: 8px 16px;
-  border: 1px solid var(--dap-tour-border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--dap-tour-text);
-  font-size: 14px;
-  font-weight: 500;
+  padding: 8px 18px;
+  border-radius: 11px;
+  font-family: var(--tour-font);
+  font-size: 13.5px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  letter-spacing: -0.01em;
+  transition: all 0.18s ease;
+  border: 1.5px solid rgba(0,0,0,0.10);
+  background: rgba(0,0,0,0.04);
+  color: var(--tour-text);
 }
-
 .dap-tour-btn:hover {
-  background: var(--dap-tour-border);
+  background: rgba(0,0,0,0.08);
+  transform: translateY(-1px);
 }
-
 .dap-tour-btn.primary {
-  background: var(--dap-tour-primary);
-  border-color: var(--dap-tour-primary);
-  color: white;
+  background: linear-gradient(135deg, var(--tour-primary) 0%, var(--tour-primary2) 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(99,102,241,0.35);
 }
-
 .dap-tour-btn.primary:hover {
-  background: #2563eb;
-  border-color: #2563eb;
+  filter: brightness(1.08);
+  box-shadow: 0 6px 20px rgba(99,102,241,0.45);
 }
 
 .dap-tour-skip {
   font-size: 12px;
-  color: var(--dap-tour-text-muted);
-  text-decoration: underline;
+  color: var(--tour-muted);
   cursor: pointer;
-  padding: 4px;
   border: none;
   background: none;
+  font-family: var(--tour-font);
+  padding: 4px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.15s ease;
 }
+.dap-tour-skip:hover { color: var(--tour-text); }
 
-.dap-tour-skip:hover {
-  color: var(--dap-tour-text);
-}
-
+/* \u2500\u2500 Progress bar (top center) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-tour-progress {
   position: fixed;
-  top: 20px;
-  left: 50%;
+  top: 20px; left: 50%;
   transform: translateX(-50%);
-  background: var(--dap-tour-bg);
-  border: 1px solid var(--dap-tour-border);
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1.5px solid rgba(99,102,241,0.15);
   border-radius: 20px;
-  padding: 8px 16px;
+  padding: 10px 20px;
   z-index: calc(var(--dap-z-tour) + 1);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  box-shadow: var(--dap-tour-shadow);
-  animation: tourProgressIn 0.3s ease-out forwards;
+  font-family: var(--tour-font);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.09);
+  min-width: 220px;
   opacity: 0;
+  animation: tour-fade-in 0.3s 0.1s ease forwards;
 }
-
-@keyframes tourProgressIn {
-  to { opacity: 1; }
-}
-
 .dap-tour-progress-text {
   font-size: 12px;
-  color: var(--dap-tour-text-muted);
-  margin-bottom: 4px;
+  font-weight: 500;
+  color: var(--tour-muted);
   text-align: center;
+  margin-bottom: 6px;
 }
-
 .dap-tour-progress-bar {
-  width: 200px;
-  height: 3px;
-  background: var(--dap-tour-border);
-  border-radius: 2px;
+  width: 100%;
+  height: 4px;
+  background: rgba(99,102,241,0.12);
+  border-radius: 99px;
   overflow: hidden;
 }
-
 .dap-tour-progress-fill {
   height: 100%;
-  background: var(--dap-tour-primary);
-  border-radius: 2px;
-  transition: width 0.4s ease;
+  background: linear-gradient(90deg, var(--tour-primary), var(--tour-primary2));
+  border-radius: 99px;
+  transition: width 0.42s cubic-bezier(0.22, 1, 0.36, 1);
   width: 0%;
 }
 
+/* \u2500\u2500 Close button (fixed top-right) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-tour-close {
   position: fixed;
-  top: 20px;
-  right: 20px;
-  background: var(--dap-tour-bg);
-  border: 1px solid var(--dap-tour-border);
+  top: 20px; right: 20px;
+  background: rgba(255,255,255,0.90);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1.5px solid rgba(0,0,0,0.10);
   border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   z-index: calc(var(--dap-z-tour) + 1);
-  box-shadow: var(--dap-tour-shadow);
-  color: var(--dap-tour-text-muted);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.09);
+  color: var(--tour-muted);
   font-size: 18px;
-  transition: all 0.15s ease;
+  transition: all 0.18s ease;
 }
-
 .dap-tour-close:hover {
-  background: var(--dap-tour-border);
-  color: var(--dap-tour-text);
+  background: #fff;
+  color: var(--tour-text);
+  transform: scale(1.06);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.14);
 }
 
+/* \u2500\u2500 Dot nav strip \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.dap-tour-dots {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.dap-tour-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: rgba(99,102,241,0.20);
+  transition: all 0.22s ease;
+}
+.dap-tour-dot.active {
+  background: var(--tour-primary);
+  transform: scale(1.25);
+}
+.dap-tour-dot.visited {
+  background: rgba(99,102,241,0.50);
+}
+
+/* \u2500\u2500 Mobile \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 @media (max-width: 640px) {
-  .dap-tour-tooltip {
-    max-width: 320px;
-    padding: 16px;
-  }
-  
-  .dap-tour-progress {
-    top: 10px;
-    padding: 6px 12px;
-  }
-  
-  .dap-tour-progress-bar {
-    width: 160px;
-  }
-  
-  .dap-tour-close {
-    top: 10px;
-    right: 10px;
-    width: 36px;
-    height: 36px;
-  }
-  
-  .dap-tour-actions {
-    flex-direction: column;
-    gap: 8px;
-  }
-  
-  .dap-tour-nav {
-    width: 100%;
-    justify-content: space-between;
-  }
+  .dap-tour-tooltip  { max-width: 310px; padding: 18px 18px 16px; }
+  .dap-tour-progress { top: 12px; padding: 8px 14px; }
+  .dap-tour-close    { top: 12px; right: 12px; width: 36px; height: 36px; font-size: 16px; }
+  .dap-tour-actions  { flex-direction: column; gap: 8px; }
+  .dap-tour-nav      { width: 100%; justify-content: space-between; }
 }
 `;
   function registerHotspotTour() {
@@ -8527,73 +8594,64 @@ var DAP = (function (exports) {
   async function renderHotspotTour(flow) {
     const { payload, id } = flow;
     const completionTracker = payload._completionTracker;
-    ensureStyles4();
+    ensureStyles6();
     let currentStepIndex = 0;
     let currentSpotlight = null;
     let currentTooltip = null;
     let autoAdvanceTimer;
-    const overlay = createTourOverlay();
-    const progressEl = payload.showProgress ? createProgressIndicator2(payload) : null;
-    const closeEl = createCloseButton();
+    const overlay = buildOverlay();
+    const progressEl = payload.showProgress ? buildProgressEl2(payload) : null;
+    const closeEl = buildCloseBtn();
     document.documentElement.appendChild(overlay);
     if (progressEl) document.documentElement.appendChild(progressEl);
     document.documentElement.appendChild(closeEl);
     closeEl.addEventListener("click", completeTour);
-    document.addEventListener("keydown", handleKeyboard);
-    await showStep(currentStepIndex);
-    async function showStep(stepIndex) {
-      if (stepIndex >= payload.steps.length) {
+    document.addEventListener("keydown", onKeyboard);
+    await showStep(0);
+    async function showStep(idx) {
+      if (idx >= payload.steps.length) {
         completeTour();
         return;
       }
-      const step = payload.steps[stepIndex];
-      currentStepIndex = stepIndex;
+      const step = payload.steps[idx];
+      currentStepIndex = idx;
       if (autoAdvanceTimer) {
         clearTimeout(autoAdvanceTimer);
         autoAdvanceTimer = void 0;
       }
       try {
-        const element = await waitForElement2(step.selector, { timeout: 3e3 });
-        if (!(element instanceof HTMLElement)) {
-          console.warn(`[DAP] Element not found for step: ${step.selector}`);
+        const el = await waitForElement(step.selector, { timeout: 3e3 });
+        if (!(el instanceof HTMLElement)) {
           nextStep();
           return;
         }
-        createSpotlight2(element);
-        createTooltip2(step, element);
-        if (progressEl) {
-          updateProgress();
-        }
+        setSpotlight(el);
+        setTooltip(step, el);
+        if (progressEl) updateProgress();
         if (payload.autoAdvance && payload.autoAdvance > 0) {
-          autoAdvanceTimer = window.setTimeout(() => {
-            nextStep();
-          }, payload.autoAdvance * 1e3);
+          autoAdvanceTimer = window.setTimeout(nextStep, payload.autoAdvance * 1e3);
         }
-      } catch (error) {
-        console.warn(`[DAP] Failed to show step ${stepIndex}:`, error);
+      } catch {
+        console.warn(`[DAP] Step ${idx} element not found`);
         nextStep();
       }
     }
-    function createSpotlight2(element) {
-      if (currentSpotlight) {
-        currentSpotlight.remove();
-      }
-      const rect = element.getBoundingClientRect();
-      const spotlight = document.createElement("div");
-      spotlight.className = "dap-tour-spotlight";
-      const padding = 8;
-      spotlight.style.left = `${rect.left + window.scrollX - padding}px`;
-      spotlight.style.top = `${rect.top + window.scrollY - padding}px`;
-      spotlight.style.width = `${rect.width + padding * 2}px`;
-      spotlight.style.height = `${rect.height + padding * 2}px`;
-      document.documentElement.appendChild(spotlight);
-      currentSpotlight = spotlight;
-      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    function setSpotlight(el) {
+      currentSpotlight?.remove();
+      const rect = el.getBoundingClientRect();
+      const PAD = 10;
+      const spot = document.createElement("div");
+      spot.className = "dap-tour-spotlight";
+      spot.style.left = `${rect.left + window.scrollX - PAD}px`;
+      spot.style.top = `${rect.top + window.scrollY - PAD}px`;
+      spot.style.width = `${rect.width + PAD * 2}px`;
+      spot.style.height = `${rect.height + PAD * 2}px`;
+      document.documentElement.appendChild(spot);
+      currentSpotlight = spot;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-    function createTooltip2(step, element) {
-      if (currentTooltip) {
-        currentTooltip.remove();
-      }
+    function setTooltip(step, el) {
+      currentTooltip?.remove();
       const tooltip = document.createElement("div");
       tooltip.className = "dap-tour-tooltip";
       const header = document.createElement("div");
@@ -8601,89 +8659,98 @@ var DAP = (function (exports) {
       const title = document.createElement("h3");
       title.className = "dap-tour-title";
       title.textContent = step.title;
-      const indicator = document.createElement("span");
-      indicator.className = "dap-tour-step-indicator";
-      indicator.textContent = `${currentStepIndex + 1} / ${payload.steps.length}`;
-      header.appendChild(title);
-      header.appendChild(indicator);
-      const description = document.createElement("div");
-      description.className = "dap-tour-description";
-      description.innerHTML = sanitizeHtml(step.description);
+      const badge = document.createElement("span");
+      badge.className = "dap-tour-step-badge";
+      badge.textContent = `${currentStepIndex + 1} / ${payload.steps.length}`;
+      header.append(title, badge);
+      const desc = document.createElement("div");
+      desc.className = "dap-tour-description";
+      desc.innerHTML = sanitizeHtml(step.description);
+      const dots = buildDots(payload.steps.length, currentStepIndex);
       const actions = document.createElement("div");
       actions.className = "dap-tour-actions";
       if (payload.allowSkip) {
-        const skipBtn = document.createElement("button");
-        skipBtn.className = "dap-tour-skip";
-        skipBtn.textContent = "Skip tour";
-        skipBtn.addEventListener("click", completeTour);
-        actions.appendChild(skipBtn);
+        const skip = document.createElement("button");
+        skip.className = "dap-tour-skip";
+        skip.textContent = "Skip tour";
+        skip.addEventListener("click", completeTour);
+        actions.appendChild(skip);
       } else {
-        actions.appendChild(document.createElement("div"));
+        actions.appendChild(dots);
       }
       const nav = document.createElement("div");
       nav.className = "dap-tour-nav";
       if (currentStepIndex > 0) {
-        const prevBtn = document.createElement("button");
-        prevBtn.className = "dap-tour-btn";
-        prevBtn.textContent = "Previous";
-        prevBtn.addEventListener("click", previousStep);
-        nav.appendChild(prevBtn);
+        const prev = document.createElement("button");
+        prev.className = "dap-tour-btn";
+        prev.textContent = "\u2190 Back";
+        prev.addEventListener("click", previousStep);
+        nav.appendChild(prev);
       }
       const nextBtn = document.createElement("button");
       nextBtn.className = "dap-tour-btn primary";
-      if (currentStepIndex === payload.steps.length - 1) {
-        nextBtn.textContent = step.action === "close" ? "Close" : "Finish";
-        nextBtn.addEventListener("click", () => {
+      const isLast = currentStepIndex === payload.steps.length - 1;
+      nextBtn.textContent = isLast ? step.action === "close" ? "Close" : "Finish \u2713" : "Next \u2192";
+      nextBtn.addEventListener("click", () => {
+        if (isLast) {
           if (step.action === "custom" && step.customAction) {
             window.dispatchEvent(new CustomEvent("dap-tour-action", {
               detail: { action: step.customAction, tourId: id, stepId: step.id }
             }));
           }
           completeTour();
-        });
-      } else {
-        nextBtn.textContent = "Next";
-        nextBtn.addEventListener("click", nextStep);
-      }
+        } else {
+          nextStep();
+        }
+      });
       nav.appendChild(nextBtn);
       actions.appendChild(nav);
-      tooltip.appendChild(header);
-      tooltip.appendChild(description);
-      tooltip.appendChild(actions);
-      positionTooltip(tooltip, element, step.placement || "bottom");
+      tooltip.append(header, desc, actions);
+      placeTooltip(tooltip, el, step.placement || "bottom");
       document.documentElement.appendChild(tooltip);
       currentTooltip = tooltip;
     }
-    function positionTooltip(tooltip, element, placement) {
-      const rect = element.getBoundingClientRect();
+    function buildDots(total, current) {
+      const wrap = document.createElement("div");
+      wrap.className = "dap-tour-dots";
+      for (let i = 0; i < total; i++) {
+        const d = document.createElement("div");
+        d.className = `dap-tour-dot${i === current ? " active" : i < current ? " visited" : ""}`;
+        wrap.appendChild(d);
+      }
+      return wrap;
+    }
+    function placeTooltip(tooltip, el, placement) {
+      const rect = el.getBoundingClientRect();
       tooltip.classList.add(placement);
-      let left = 0;
-      let top = 0;
+      const TW = 380;
+      const TH = 160;
+      const GAP = 20;
+      let left = 0, top = 0;
       switch (placement) {
         case "top":
-          left = rect.left + window.scrollX + rect.width / 2 - 180;
-          top = rect.top + window.scrollY - 16 - 140;
+          left = rect.left + window.scrollX + rect.width / 2 - TW / 2;
+          top = rect.top + window.scrollY - TH - GAP;
           break;
         case "bottom":
-          left = rect.left + window.scrollX + rect.width / 2 - 180;
-          top = rect.bottom + window.scrollY + 16;
+          left = rect.left + window.scrollX + rect.width / 2 - TW / 2;
+          top = rect.bottom + window.scrollY + GAP;
           break;
         case "left":
-          left = rect.left + window.scrollX - 360 - 16;
-          top = rect.top + window.scrollY + rect.height / 2 - 70;
+          left = rect.left + window.scrollX - TW - GAP;
+          top = rect.top + window.scrollY + rect.height / 2 - TH / 2;
           break;
         case "right":
-          left = rect.right + window.scrollX + 16;
-          top = rect.top + window.scrollY + rect.height / 2 - 70;
+          left = rect.right + window.scrollX + GAP;
+          top = rect.top + window.scrollY + rect.height / 2 - TH / 2;
           break;
         default:
-          left = rect.left + window.scrollX + rect.width / 2 - 180;
-          top = rect.bottom + window.scrollY + 16;
+          left = rect.left + window.scrollX + rect.width / 2 - TW / 2;
+          top = rect.bottom + window.scrollY + GAP;
       }
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      left = Math.max(10, Math.min(left, viewportWidth - 370));
-      top = Math.max(10, Math.min(top, viewportHeight - 160));
+      const VW = window.innerWidth, VH = window.innerHeight;
+      left = Math.max(10, Math.min(left, VW - TW - 10));
+      top = Math.max(10, Math.min(top, VH - TH - 10));
       tooltip.style.left = `${left}px`;
       tooltip.style.top = `${top}px`;
     }
@@ -8691,28 +8758,20 @@ var DAP = (function (exports) {
       showStep(currentStepIndex + 1);
     }
     function previousStep() {
-      if (currentStepIndex > 0) {
-        showStep(currentStepIndex - 1);
-      }
+      if (currentStepIndex > 0) showStep(currentStepIndex - 1);
     }
     function updateProgress() {
       if (!progressEl) return;
-      const progress = (currentStepIndex + 1) / payload.steps.length * 100;
-      const progressText = progressEl.querySelector(".dap-tour-progress-text");
-      const progressFill = progressEl.querySelector(".dap-tour-progress-fill");
-      if (progressText) {
-        progressText.textContent = `Step ${currentStepIndex + 1} of ${payload.steps.length}`;
-      }
-      if (progressFill) {
-        progressFill.style.width = `${progress}%`;
-      }
+      const pct = (currentStepIndex + 1) / payload.steps.length * 100;
+      const text = progressEl.querySelector(".dap-tour-progress-text");
+      const fill = progressEl.querySelector(".dap-tour-progress-fill");
+      if (text) text.textContent = `Step ${currentStepIndex + 1} of ${payload.steps.length}`;
+      if (fill) fill.style.width = `${pct}%`;
     }
-    function handleKeyboard(e) {
+    function onKeyboard(e) {
       switch (e.key) {
         case "Escape":
-          if (payload.allowSkip) {
-            completeTour();
-          }
+          if (payload.allowSkip) completeTour();
           break;
         case "ArrowRight":
           e.preventDefault();
@@ -8724,55 +8783,48 @@ var DAP = (function (exports) {
           break;
       }
     }
+    let _tourDone = false;
     function completeTour() {
-      if (autoAdvanceTimer) {
-        clearTimeout(autoAdvanceTimer);
-      }
-      document.removeEventListener("keydown", handleKeyboard);
+      if (_tourDone) return;
+      _tourDone = true;
+      if (autoAdvanceTimer) clearTimeout(autoAdvanceTimer);
+      document.removeEventListener("keydown", onKeyboard);
       overlay.remove();
-      if (currentSpotlight) currentSpotlight.remove();
-      if (currentTooltip) currentTooltip.remove();
-      if (progressEl) progressEl.remove();
+      currentSpotlight?.remove();
+      currentTooltip?.remove();
+      progressEl?.remove();
       closeEl.remove();
-      if (completionTracker?.onComplete) {
-        console.debug(`[DAP] Completing hotspot tour flow: ${id}`);
-        completionTracker.onComplete();
-      }
+      completionTracker?.onComplete?.();
     }
   }
-  function createTourOverlay() {
-    const overlay = document.createElement("div");
-    overlay.className = "dap-tour-overlay";
-    return overlay;
+  function buildOverlay() {
+    const el = document.createElement("div");
+    el.className = "dap-tour-overlay";
+    return el;
   }
-  function createProgressIndicator2(payload) {
-    const progress = document.createElement("div");
-    progress.className = "dap-tour-progress";
-    const text = document.createElement("div");
-    text.className = "dap-tour-progress-text";
-    text.textContent = `Step 1 of ${payload.steps.length}`;
-    const bar = document.createElement("div");
-    bar.className = "dap-tour-progress-bar";
-    const fill = document.createElement("div");
-    fill.className = "dap-tour-progress-fill";
-    bar.appendChild(fill);
-    progress.appendChild(text);
-    progress.appendChild(bar);
-    return progress;
+  function buildProgressEl2(payload) {
+    const el = document.createElement("div");
+    el.className = "dap-tour-progress";
+    el.innerHTML = `
+    <div class="dap-tour-progress-text">Step 1 of ${payload.steps.length}</div>
+    <div class="dap-tour-progress-bar">
+      <div class="dap-tour-progress-fill"></div>
+    </div>`;
+    return el;
   }
-  function createCloseButton() {
-    const closeBtn = document.createElement("button");
-    closeBtn.className = "dap-tour-close";
-    closeBtn.innerHTML = "\xD7";
-    closeBtn.setAttribute("aria-label", "Close tour");
-    return closeBtn;
+  function buildCloseBtn() {
+    const btn = document.createElement("button");
+    btn.className = "dap-tour-close";
+    btn.innerHTML = "\xD7";
+    btn.setAttribute("aria-label", "Close tour");
+    return btn;
   }
-  function ensureStyles4() {
-    if (!document.getElementById("dap-tour-style")) {
-      const style = document.createElement("style");
-      style.id = "dap-tour-style";
-      style.textContent = hotspotTourCssText;
-      document.head.appendChild(style);
+  function ensureStyles6() {
+    if (!document.getElementById("dap-tour-style-v2")) {
+      const s = document.createElement("style");
+      s.id = "dap-tour-style-v2";
+      s.textContent = hotspotTourCssText;
+      document.head.appendChild(s);
     }
   }
 
@@ -9078,7 +9130,7 @@ var DAP = (function (exports) {
   async function renderTaskList(flow) {
     const { payload, id } = flow;
     const completionTracker = payload._completionTracker;
-    ensureStyles5();
+    ensureStyles7();
     const completedTasks = /* @__PURE__ */ new Set();
     payload.tasks.forEach((task) => {
       if (task.completed) {
@@ -9190,7 +9242,11 @@ var DAP = (function (exports) {
         completionText.textContent = "";
       }
     }
+    let _taskListDone = false;
     function completeTaskList() {
+      if (_taskListDone) return;
+      _taskListDone = true;
+      document.removeEventListener("keydown", handleKeyboard);
       overlay.style.animation = "tasklistOverlayFadeOut 0.2s ease-in";
       modal.style.animation = "tasklistModalOut 0.2s ease-in";
       setTimeout(() => {
@@ -9296,7 +9352,7 @@ var DAP = (function (exports) {
     overlay.appendChild(modal);
     return { overlay, modal, progressEl, bodyEl, footerEl };
   }
-  function ensureStyles5() {
+  function ensureStyles7() {
     if (!document.getElementById("dap-tasklist-style")) {
       const style = document.createElement("style");
       style.id = "dap-tasklist-style";
@@ -9306,7 +9362,6 @@ var DAP = (function (exports) {
   }
 
   // src/experiences/walkthrough.ts
-  init_selectors();
   init_registry();
   var walkthroughCssText = `
 :root {
@@ -9636,7 +9691,7 @@ var DAP = (function (exports) {
   async function renderWalkthrough(flow) {
     const { payload, id } = flow;
     const completionTracker = payload._completionTracker;
-    ensureStyles6();
+    ensureStyles8();
     let currentStepIndex = 0;
     let isActive = false;
     const overlay = createWalkthroughOverlay();
@@ -9791,7 +9846,10 @@ var DAP = (function (exports) {
         showStep(currentStepIndex - 1);
       }
     }
+    let _walkthroughDone = false;
     function completeWalkthrough() {
+      if (_walkthroughDone) return;
+      _walkthroughDone = true;
       isActive = false;
       document.querySelectorAll(".dap-walkthrough-highlight").forEach((el) => {
         el.classList.remove("dap-walkthrough-highlight");
@@ -9873,7 +9931,7 @@ var DAP = (function (exports) {
   `;
     return tooltip;
   }
-  function ensureStyles6() {
+  function ensureStyles8() {
     if (!document.getElementById("dap-walkthrough-style")) {
       const style = document.createElement("style");
       style.id = "dap-walkthrough-style";
@@ -9881,348 +9939,6 @@ var DAP = (function (exports) {
       document.head.appendChild(style);
     }
   }
-
-  // src/services/locationContextService.ts
-  var LocationContextService = class _LocationContextService {
-    constructor() {
-      this._listeners = /* @__PURE__ */ new Set();
-      this._currentContext = {
-        currentPath: window.location.pathname.replace(/^\/+/, "")
-      };
-      window.addEventListener("popstate", this.updateContext.bind(this));
-      window.addEventListener("hashchange", this.updateContext.bind(this));
-      this.monitorHistoryChanges();
-    }
-    /**
-     * Get the singleton instance of the LocationContextService
-     */
-    static getInstance() {
-      if (!this._instance) {
-        this._instance = new _LocationContextService();
-      }
-      return this._instance;
-    }
-    /**
-     * Set the current screen ID
-     * @param screenId The ID of the current screen/view
-     */
-    setScreenId(screenId) {
-      const normalizedScreenId = screenId.replace(/^\/+/, "");
-      this._currentContext = {
-        ...this._currentContext,
-        screenId: normalizedScreenId
-      };
-      this.notifyListeners();
-    }
-    /**
-     * Set the current location context
-     * @param context New context values
-     */
-    setContext(context) {
-      const normalizedContext = { ...context };
-      if (normalizedContext.currentPath) {
-        normalizedContext.currentPath = normalizedContext.currentPath.replace(/^\/+/, "");
-      }
-      if (normalizedContext.screenId) {
-        normalizedContext.screenId = normalizedContext.screenId.replace(/^\/+/, "");
-      }
-      this._currentContext = {
-        ...this._currentContext,
-        ...normalizedContext
-      };
-      this.notifyListeners();
-    }
-    /**
-     * Get the current location context
-     * @returns The current location context
-     */
-    getContext() {
-      return { ...this._currentContext };
-    }
-    /**
-     * Subscribe to location context changes
-     * @param listener Function to call when the context changes
-     * @returns Function to unsubscribe
-     */
-    subscribe(listener) {
-      this._listeners.add(listener);
-      return () => this._listeners.delete(listener);
-    }
-    /**
-     * Monitor history API changes for SPAs
-     * This helps detect navigation in single-page applications
-     */
-    monitorHistoryChanges() {
-      const originalPushState = history.pushState;
-      const originalReplaceState = history.replaceState;
-      history.pushState = (...args) => {
-        originalPushState.apply(history, args);
-        this.updateContext();
-      };
-      history.replaceState = (...args) => {
-        originalReplaceState.apply(history, args);
-        this.updateContext();
-      };
-    }
-    /**
-     * Update the current context based on window location
-     */
-    updateContext() {
-      const normalizedPath = window.location.pathname.replace(/^\/+/, "");
-      this._currentContext = {
-        ...this._currentContext,
-        currentPath: normalizedPath
-      };
-      this.notifyListeners();
-    }
-    /**
-     * Check if the current location matches a specific location requirement
-     * @param elementLocation The required location/route from the flow
-     * @returns True if the current location matches the requirement
-     */
-    matchesLocation(elementLocation) {
-      if (!elementLocation) return true;
-      const currentPath = this._currentContext.currentPath || "";
-      const currentScreenId = this._currentContext.screenId || "";
-      const normalizedRequired = elementLocation.replace(/^\/+/, "").toLowerCase();
-      if (currentPath.toLowerCase() === normalizedRequired || currentScreenId.toLowerCase() === normalizedRequired) {
-        return true;
-      }
-      if (currentPath.toLowerCase().includes(normalizedRequired)) {
-        return true;
-      }
-      if (currentPath.toLowerCase().startsWith(normalizedRequired + "/")) {
-        return true;
-      }
-      const hash = window.location.hash.replace(/^#+/, "").toLowerCase();
-      if (hash === normalizedRequired || hash.includes(normalizedRequired)) {
-        return true;
-      }
-      const urlParams = new URLSearchParams(window.location.search);
-      const routeParam = urlParams.get("route") || urlParams.get("page") || urlParams.get("view");
-      if (routeParam && routeParam.toLowerCase() === normalizedRequired) {
-        return true;
-      }
-      return false;
-    }
-    /**
-     * Notify all listeners of context change
-     */
-    notifyListeners() {
-      this._listeners.forEach((listener) => listener(this.getContext()));
-    }
-  };
-  LocationContextService.getInstance();
-
-  // src/services/userContextService.ts
-  var _UserContextService = class _UserContextService {
-    constructor() {
-      this._user = null;
-      this._fallbackUserId = null;
-      this._eventListeners = [];
-      this.SESSION_STORAGE_KEY = "dap_user_context";
-      this.FALLBACK_USER_KEY = "dap_anonymous_user_id";
-      this.initializeFromStorage();
-      console.debug("[DAP UserContext] Service initialized");
-    }
-    /**
-     * Get singleton instance
-     */
-    static getInstance() {
-      if (!this._instance) {
-        this._instance = new _UserContextService();
-      }
-      return this._instance;
-    }
-    /**
-     * Initialize user context from sessionStorage
-     */
-    initializeFromStorage() {
-      try {
-        const storedUser = sessionStorage.getItem(this.SESSION_STORAGE_KEY);
-        if (storedUser) {
-          this._user = JSON.parse(storedUser);
-          console.debug("[DAP UserContext] Restored user from storage:", this._user?.id);
-        }
-        this._fallbackUserId = sessionStorage.getItem(this.FALLBACK_USER_KEY);
-        if (!this._fallbackUserId) {
-          this._fallbackUserId = this.generateFallbackUserId();
-          sessionStorage.setItem(this.FALLBACK_USER_KEY, this._fallbackUserId);
-          console.debug("[DAP UserContext] Generated fallback user ID:", this._fallbackUserId);
-        }
-      } catch (error) {
-        console.error("[DAP UserContext] Error initializing from storage:", error);
-        this._fallbackUserId = this.generateFallbackUserId();
-      }
-    }
-    /**
-     * Generate a stable unique fallback user ID
-     */
-    generateFallbackUserId() {
-      const timestamp = Date.now();
-      const random = Math.random().toString(36).substring(2, 15);
-      return `dap-anon-${timestamp}-${random}`;
-    }
-    /**
-     * Set user context (replaces existing user)
-     */
-    setUser(user) {
-      if (!user || !user.id) {
-        console.error("[DAP UserContext] Invalid user - id is required");
-        return;
-      }
-      const previousUser = this._user;
-      this._user = { ...user };
-      try {
-        sessionStorage.setItem(this.SESSION_STORAGE_KEY, JSON.stringify(this._user));
-      } catch (error) {
-        console.error("[DAP UserContext] Error persisting user:", error);
-      }
-      console.debug("[DAP UserContext] User set:", this._user.id);
-      this.notifyListeners({ type: "user-changed", user: this._user, previousUser });
-    }
-    /**
-     * Update user context (merge with existing data)
-     */
-    updateUser(partialUser) {
-      if (!this._user) {
-        console.warn("[DAP UserContext] Cannot update - no user context available");
-        return;
-      }
-      const previousUser = { ...this._user };
-      this._user = {
-        ...this._user,
-        ...partialUser,
-        // Merge attributes specifically
-        attributes: {
-          ...this._user.attributes,
-          ...partialUser.attributes
-        }
-      };
-      try {
-        sessionStorage.setItem(this.SESSION_STORAGE_KEY, JSON.stringify(this._user));
-      } catch (error) {
-        console.error("[DAP UserContext] Error persisting updated user:", error);
-      }
-      console.debug("[DAP UserContext] User updated:", this._user.id);
-      this.notifyListeners({ type: "user-changed", user: this._user, previousUser });
-    }
-    /**
-     * Get current user context
-     */
-    getUser() {
-      return this._user ? { ...this._user } : null;
-    }
-    /**
-     * Clear user context (reverts to anonymous)
-     */
-    clearUser() {
-      const previousUser = this._user;
-      this._user = null;
-      try {
-        sessionStorage.removeItem(this.SESSION_STORAGE_KEY);
-      } catch (error) {
-        console.error("[DAP UserContext] Error clearing user storage:", error);
-      }
-      console.debug("[DAP UserContext] User context cleared");
-      this.notifyListeners({ type: "user-cleared", user: null, previousUser });
-    }
-    /**
-     * Check if real user context is available (not anonymous)
-     */
-    hasRealUser() {
-      return this._user !== null;
-    }
-    /**
-     * Get analytics context for tracking
-     */
-    getAnalyticsContext() {
-      if (this._user) {
-        return {
-          userId: this._user.id,
-          role: this._user.role,
-          attributes: this._user.attributes,
-          isAnonymous: false
-        };
-      } else {
-        return {
-          userId: this._fallbackUserId || "unknown",
-          isAnonymous: true
-        };
-      }
-    }
-    /**
-     * Get user property for rule evaluation
-     * Supports: user.id, user.role, user.email, user.attributes.*
-     */
-    getUserProperty(propertyPath) {
-      if (!propertyPath.startsWith("user.")) {
-        return null;
-      }
-      const path = propertyPath.substring(5);
-      if (!this._user) {
-        if (path === "id") {
-          return this._fallbackUserId;
-        }
-        console.debug(`[DAP UserContext] Property ${propertyPath} not available - no user context`);
-        return null;
-      }
-      switch (path) {
-        case "id":
-          return this._user.id;
-        case "role":
-          return this._user.role || null;
-        case "email":
-          return this._user.email || null;
-        default:
-          if (path.startsWith("attributes.")) {
-            const attributeKey = path.substring(11);
-            return this._user.attributes?.[attributeKey] || null;
-          }
-          console.warn(`[DAP UserContext] Unknown property path: ${propertyPath}`);
-          return null;
-      }
-    }
-    /**
-     * Subscribe to user context changes
-     */
-    onUserChange(callback) {
-      this._eventListeners.push(callback);
-      return () => {
-        const index = this._eventListeners.indexOf(callback);
-        if (index > -1) {
-          this._eventListeners.splice(index, 1);
-        }
-      };
-    }
-    /**
-     * Notify all listeners of user context changes
-     */
-    notifyListeners(event) {
-      this._eventListeners.forEach((callback) => {
-        try {
-          callback(event);
-        } catch (error) {
-          console.error("[DAP UserContext] Error in change listener:", error);
-        }
-      });
-    }
-    /**
-     * Debug method to get current state
-     */
-    getDebugState() {
-      return {
-        hasUser: this.hasRealUser(),
-        userId: this._user?.id || this._fallbackUserId,
-        userRole: this._user?.role,
-        isAnonymous: !this.hasRealUser(),
-        attributeCount: Object.keys(this._user?.attributes || {}).length
-      };
-    }
-  };
-  _UserContextService._instance = null;
-  var UserContextService = _UserContextService;
-  var userContextService = UserContextService.getInstance();
 
   // src/services/pageContextService.ts
   var _PageContextService = class _PageContextService {
@@ -10232,6 +9948,8 @@ var DAP = (function (exports) {
       this.initialized = false;
       this.originalPushState = history.pushState;
       this.originalReplaceState = history.replaceState;
+      // Store bound handler reference so the same reference is used for add/remove
+      this._boundHandlePopState = this.handlePopState.bind(this);
     }
     static getInstance() {
       if (!_PageContextService.instance) {
@@ -10246,7 +9964,7 @@ var DAP = (function (exports) {
       if (this.initialized) return;
       console.debug("[DAP] PageContextService: Initializing...");
       this.currentContext = this.captureCurrentContext();
-      window.addEventListener("popstate", this.handlePopState.bind(this));
+      window.addEventListener("popstate", this._boundHandlePopState);
       this.interceptHistoryMethods();
       this.initialized = true;
       console.debug("[DAP] PageContextService: Initialized with context:", this.currentContext);
@@ -10314,7 +10032,7 @@ var DAP = (function (exports) {
     destroy() {
       if (!this.initialized) return;
       console.debug("[DAP] PageContextService: Destroying...");
-      window.removeEventListener("popstate", this.handlePopState.bind(this));
+      window.removeEventListener("popstate", this._boundHandlePopState);
       this.restoreHistoryMethods();
       this.handlers.clear();
       this.currentContext = null;
@@ -10377,53 +10095,219 @@ var DAP = (function (exports) {
   var PageContextService = _PageContextService;
   var pageContextService = PageContextService.getInstance();
 
+  // src/services/locationContextService.ts
+  var LocationContextService = class _LocationContextService {
+    constructor() {
+      this._listeners = /* @__PURE__ */ new Set();
+      this._currentContext = {
+        currentPath: window.location.pathname.replace(/^\/+/, "")
+      };
+      pageContextService.subscribe((_event) => {
+        this.updateContext();
+      });
+      window.addEventListener("hashchange", this.updateContext.bind(this));
+    }
+    /**
+     * Get the singleton instance of the LocationContextService
+     */
+    static getInstance() {
+      if (!this._instance) {
+        this._instance = new _LocationContextService();
+      }
+      return this._instance;
+    }
+    /**
+     * Set the current screen ID
+     * @param screenId The ID of the current screen/view
+     */
+    setScreenId(screenId) {
+      const normalizedScreenId = screenId.replace(/^\/+/, "");
+      this._currentContext = {
+        ...this._currentContext,
+        screenId: normalizedScreenId
+      };
+      this.notifyListeners();
+    }
+    /**
+     * Set the current location context
+     * @param context New context values
+     */
+    setContext(context) {
+      const normalizedContext = { ...context };
+      if (normalizedContext.currentPath) {
+        normalizedContext.currentPath = normalizedContext.currentPath.replace(/^\/+/, "");
+      }
+      if (normalizedContext.screenId) {
+        normalizedContext.screenId = normalizedContext.screenId.replace(/^\/+/, "");
+      }
+      this._currentContext = {
+        ...this._currentContext,
+        ...normalizedContext
+      };
+      this.notifyListeners();
+    }
+    /**
+     * Get the current location context
+     * @returns The current location context
+     */
+    getContext() {
+      return { ...this._currentContext };
+    }
+    /**
+     * Subscribe to location context changes
+     * @param listener Function to call when the context changes
+     * @returns Function to unsubscribe
+     */
+    subscribe(listener) {
+      this._listeners.add(listener);
+      return () => this._listeners.delete(listener);
+    }
+    /**
+     * Update the current context based on window location
+     */
+    updateContext() {
+      const normalizedPath = window.location.pathname.replace(/^\/+/, "");
+      this._currentContext = {
+        ...this._currentContext,
+        currentPath: normalizedPath
+      };
+      this.notifyListeners();
+    }
+    /**
+     * Check if the current location matches a specific location requirement
+     * @param elementLocation The required location/route from the flow
+     * @returns True if the current location matches the requirement
+     */
+    matchesLocation(elementLocation) {
+      if (!elementLocation) return true;
+      const currentPath = this._currentContext.currentPath || "";
+      const currentScreenId = this._currentContext.screenId || "";
+      const normalizedRequired = elementLocation.replace(/^\/+/, "").toLowerCase();
+      if (currentPath.toLowerCase() === normalizedRequired || currentScreenId.toLowerCase() === normalizedRequired) {
+        return true;
+      }
+      if (currentPath.toLowerCase().includes(normalizedRequired)) {
+        return true;
+      }
+      if (currentPath.toLowerCase().startsWith(normalizedRequired + "/")) {
+        return true;
+      }
+      const hash = window.location.hash.replace(/^#+/, "").toLowerCase();
+      if (hash === normalizedRequired || hash.includes(normalizedRequired)) {
+        return true;
+      }
+      const urlParams = new URLSearchParams(window.location.search);
+      const routeParam = urlParams.get("route") || urlParams.get("page") || urlParams.get("view");
+      if (routeParam && routeParam.toLowerCase() === normalizedRequired) {
+        return true;
+      }
+      return false;
+    }
+    /**
+     * Notify all listeners of context change
+     */
+    notifyListeners() {
+      this._listeners.forEach((listener) => listener(this.getContext()));
+    }
+  };
+  LocationContextService.getInstance();
+
+  // src/index.ts
+  init_userContextService();
+
   // src/core/flowEngine.ts
-  init_selectors();
-  init_triggerNormalizer();
+  init_userContextService();
+
+  // src/tracking.ts
+  init_userContextService();
+
+  // src/utils/privacyManager.ts
+  var PRIVACY_PREFS_KEY = "dap_privacy_preferences";
+  var DEFAULT_PREFERENCES = {
+    consentLevel: "essential" /* ESSENTIAL */,
+    allowedDataCategories: [
+      "device_info" /* DEVICE_INFO */,
+      "user_id" /* USER_ID */
+    ],
+    lastUpdated: Date.now(),
+    expiresAt: Date.now() + 180 * 24 * 60 * 60 * 1e3,
+    // 180 days
+    hasExplicitConsent: false
+  };
+  function getPrivacyPreferences() {
+    try {
+      const storedPrefs = localStorage.getItem(PRIVACY_PREFS_KEY);
+      if (!storedPrefs) {
+        return DEFAULT_PREFERENCES;
+      }
+      const parsedPrefs = JSON.parse(storedPrefs);
+      if (parsedPrefs.expiresAt < Date.now()) {
+        return DEFAULT_PREFERENCES;
+      }
+      return parsedPrefs;
+    } catch (error) {
+      console.error("[DAP] Error reading privacy preferences:", error);
+      return DEFAULT_PREFERENCES;
+    }
+  }
+  function hasConsentLevel(level) {
+    const prefs = getPrivacyPreferences();
+    const levels = [
+      "none" /* NONE */,
+      "essential" /* ESSENTIAL */,
+      "functional" /* FUNCTIONAL */,
+      "analytics" /* ANALYTICS */,
+      "all" /* ALL */
+    ];
+    const currentLevelIndex = levels.indexOf(prefs.consentLevel);
+    const requestedLevelIndex = levels.indexOf(level);
+    return currentLevelIndex >= requestedLevelIndex;
+  }
 
   // src/tracking.ts
   var StepTrackingState = class {
     constructor() {
-      this.trackedSteps = /* @__PURE__ */ new Set();
-      this.currentFlowId = null;
+      /** Map of flowId → Set of "flowId:stepId" keys that have been tracked. */
+      this.trackedStepsByFlow = /* @__PURE__ */ new Map();
     }
     /**
-     * Check if a step has already been tracked for the current flow
+     * Check if a step has already been tracked for a given flow
      */
     isStepTracked(flowId, stepId) {
-      if (this.currentFlowId !== flowId) {
-        this.reset(flowId);
-      }
-      const key = `${flowId}:${stepId}`;
-      return this.trackedSteps.has(key);
+      const flowSet = this.trackedStepsByFlow.get(flowId);
+      if (!flowSet) return false;
+      return flowSet.has(`${flowId}:${stepId}`);
     }
     /**
      * Mark a step as tracked
      */
     markStepTracked(flowId, stepId) {
-      if (this.currentFlowId !== flowId) {
-        this.reset(flowId);
+      if (!this.trackedStepsByFlow.has(flowId)) {
+        this.trackedStepsByFlow.set(flowId, /* @__PURE__ */ new Set());
       }
       const key = `${flowId}:${stepId}`;
-      this.trackedSteps.add(key);
+      this.trackedStepsByFlow.get(flowId).add(key);
       console.debug(`[DAP Tracking] Step marked as tracked: ${key}`);
     }
     /**
-     * Reset tracking state for a new flow
+     * Reset tracking state for a specific flow only.
+     * Other flows' tracked-step history is preserved so re-entering a prior
+     * flow in the same session will not re-fire its step-view events.
      */
     reset(flowId) {
-      this.currentFlowId = flowId;
-      this.trackedSteps.clear();
+      this.trackedStepsByFlow.delete(flowId);
       console.debug(`[DAP Tracking] Tracking state reset for flow: ${flowId}`);
     }
     /**
      * Get current tracking state (for debugging)
      */
     getState() {
+      const allSteps = [];
+      this.trackedStepsByFlow.forEach((set) => set.forEach((k) => allSteps.push(k)));
       return {
-        flowId: this.currentFlowId,
-        trackedCount: this.trackedSteps.size,
-        trackedSteps: Array.from(this.trackedSteps)
+        flowId: null,
+        trackedCount: allSteps.length,
+        trackedSteps: allSteps
       };
     }
   };
@@ -10437,6 +10321,10 @@ var DAP = (function (exports) {
       console.debug(`[DAP Tracking] Step already tracked, skipping: ${flowId}:${stepId}`);
       return;
     }
+    if (!hasConsentLevel("essential" /* ESSENTIAL */)) {
+      console.debug("[DAP Tracking] Step view tracking blocked: insufficient consent level");
+      return;
+    }
     const dapConfig = window.__DAP_CONFIG__;
     if (!dapConfig) {
       console.error("[DAP Tracking] No configuration available for tracking");
@@ -10445,7 +10333,7 @@ var DAP = (function (exports) {
     const userAnalyticsContext = userContextService.getAnalyticsContext();
     const userId = userAnalyticsContext.userId;
     if (!userId) {
-      console.warn("[DAP Tracking] No user ID available for tracking");
+      console.warn("[DAP Tracking] No user identity available for tracking");
       return;
     }
     trackingState.markStepTracked(flowId, stepId);
@@ -10496,67 +10384,36 @@ var DAP = (function (exports) {
     trackingState.reset(flowId);
   }
 
-  // src/core/triggerManager.ts
-  init_selectors();
-  function resolveSelectorAll(selector, root = document) {
-    if (!selector || typeof selector !== "string") return [];
+  // src/utils/previewMode.ts
+  var PREVIEW_SESSION_STORAGE_KEY = "dap_preview_session_id";
+  var PREVIEW_FLOW_ID_STORAGE_KEY = "dap_preview_flow_id";
+  function detectPreviewMode() {
     try {
-      const cssElements = root.querySelectorAll(selector);
-      if (cssElements.length > 0) return Array.from(cssElements);
-    } catch {
-    }
-    try {
-      const doc = root instanceof Document ? root : root.ownerDocument ?? document;
-      const resolve = (sel) => {
-        const result = doc.evaluate(
-          sel,
-          root,
-          null,
-          XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-          null
-        );
-        const elements = [];
-        for (let i = 0; i < result.snapshotLength; i++) {
-          const element = result.snapshotItem(i);
-          if (element) elements.push(element);
+      const urlParams = new URLSearchParams(window.location.search);
+      const previewSessionIdParam = urlParams.get("previewSessionId");
+      const flowIdParam = urlParams.get("flowId");
+      if (!previewSessionIdParam?.trim() || !flowIdParam?.trim()) {
+        const hadSession = sessionStorage.getItem(PREVIEW_SESSION_STORAGE_KEY);
+        if (hadSession) {
+          sessionStorage.removeItem(PREVIEW_SESSION_STORAGE_KEY);
+          sessionStorage.removeItem(PREVIEW_FLOW_ID_STORAGE_KEY);
+          console.debug("[DAP] Stale preview session evicted (missing previewSessionId or flowId in URL)");
         }
-        return elements;
-      };
-      const primaryResults = resolve(selector);
-      if (primaryResults.length > 0) return primaryResults;
-      if (selector.startsWith("/html[1]/body[1]/")) {
-        const simplified = selector.replace("/html[1]/body[1]/", "//");
-        const fallbackResults = resolve(simplified);
-        if (fallbackResults.length > 0) {
-          console.debug(`[DAP] resolveSelectorAll found elements using simplified XPath fallback: ${simplified}`);
-          return fallbackResults;
-        }
+        return { isPreviewMode: false, previewSessionId: null, flowId: null };
       }
-    } catch {
+      const previewSessionId = previewSessionIdParam.trim();
+      const flowId = flowIdParam.trim();
+      sessionStorage.setItem(PREVIEW_SESSION_STORAGE_KEY, previewSessionId);
+      sessionStorage.setItem(PREVIEW_FLOW_ID_STORAGE_KEY, flowId);
+      return { isPreviewMode: true, previewSessionId, flowId };
+    } catch (error) {
+      console.error("[DAP] Error detecting preview mode:", error);
+      return { isPreviewMode: false, previewSessionId: null, flowId: null };
     }
-    try {
-      const shadowElements = [];
-      const walk = (node) => {
-        if (node instanceof Element) {
-          if (node.shadowRoot) {
-            try {
-              const results = node.shadowRoot.querySelectorAll(selector);
-              shadowElements.push(...Array.from(results));
-            } catch {
-            }
-            walk(node.shadowRoot);
-          }
-        }
-        node.childNodes.forEach(walk);
-      };
-      walk(document.body);
-      if (shadowElements.length > 0) return shadowElements;
-    } catch {
-    }
-    return [];
   }
+
+  // src/core/triggerManager.ts
   var TriggerManager = class _TriggerManager {
-    // 30 seconds default
     constructor() {
       this._activeListeners = /* @__PURE__ */ new Map();
       this._triggeredOnceSet = /* @__PURE__ */ new Set();
@@ -10565,6 +10422,8 @@ var DAP = (function (exports) {
       this._registeredTriggers = {};
       this._waitTimeouts = /* @__PURE__ */ new Map();
       this._selectorWaitTimeout = 3e4;
+      // 30 seconds default
+      this._conditionStates = /* @__PURE__ */ new Map();
       // Helper methods for debouncing
       this._debounceTimestamps = /* @__PURE__ */ new Map();
     }
@@ -10600,7 +10459,8 @@ var DAP = (function (exports) {
           stepId,
           registration.trigger,
           registration.onTrigger,
-          registration.flowContext
+          registration.flowContext,
+          registration.stepType
         );
       }
     }
@@ -10613,14 +10473,6 @@ var DAP = (function (exports) {
       );
       lifecycleKeys.forEach((key) => {
         this._triggeredOnceSet.delete(key);
-      });
-    }
-    /**
-     * Re-evaluate active triggers on page change
-     */
-    reEvaluateActiveTriggers(event) {
-      Object.entries(this._registeredTriggers).forEach(([stepId, { trigger, onTrigger, flowContext }]) => {
-        this.registerTriggerListeners(stepId, trigger, onTrigger, flowContext);
       });
     }
     /**
@@ -10646,104 +10498,39 @@ var DAP = (function (exports) {
       this._activeListeners.clear();
       this._triggeredOnceSet.clear();
       this._registeredTriggers = {};
+      clearSelectorCache();
       this._initialized = false;
     }
     /**
-     * Resolve trigger for a step following the priority rules:
+     * Resolve trigger for a step:
      * 1. Use step.trigger if it exists and has valid conditions
-     * 2. Fallback to uxExperience.elementTrigger if available
-     * 3. Return null if no trigger is resolvable
+     * 2. Return null if no trigger is resolvable
      */
     resolveTrigger(step) {
       console.debug(`[DAP] Resolving trigger for step: ${step.stepId}`);
       if (step.trigger && step.trigger.conditions && step.trigger.conditions.length > 0) {
-        console.log(`\u2705 [DAP] Step ${step.stepId}: Using STEP-LEVEL trigger with ${step.trigger.conditions.length} conditions`);
-        console.log(`   \u2514\u2500\u2500 Trigger type: ${step.trigger.type}, Event: ${step.trigger.conditions[0]?.event}, Kind: ${step.trigger.conditions[0]?.kind}`);
-        if (step.uxExperience?.elementTrigger) {
-          console.log(`   \u26A0\uFE0F  Note: elementTrigger "${step.uxExperience.elementTrigger}" is present but IGNORED (step-level takes priority)`);
-        }
+        console.debug(`\u2705 [DAP] Step ${step.stepId}: Using STEP-LEVEL trigger with ${step.trigger.conditions.length} conditions`);
+        console.debug(`   \u2514\u2500\u2500 Trigger type: ${step.trigger.type}, Event: ${step.trigger.conditions[0]?.event}, Kind: ${step.trigger.conditions[0]?.kind}`);
         return step.trigger;
       }
-      if (step.uxExperience?.elementTrigger) {
-        console.warn(`\u26A0\uFE0F  [DAP] Step ${step.stepId}: Falling back to ELEMENT-LEVEL trigger: "${step.uxExperience.elementTrigger}"`);
-        console.warn(`   \u2514\u2500\u2500 This fallback will be removed in the future! Please add step-level trigger.`);
-        console.warn(`   \u2514\u2500\u2500 Element selector: ${step.uxExperience.elementSelector}`);
-        const fallbackTrigger = this.convertElementTriggerToTriggerDefinition(
-          step.uxExperience.elementTrigger,
-          step.uxExperience.elementSelector
-        );
-        return fallbackTrigger;
-      }
       console.error(`\u274C [DAP] Step ${step.stepId}: NO TRIGGER FOUND! Step will execute immediately.`);
-      console.error(`   \u2514\u2500\u2500 Consider adding either step-level trigger or elementTrigger`);
       return null;
-    }
-    /**
-     * Convert legacy elementTrigger to TriggerDefinition
-     */
-    convertElementTriggerToTriggerDefinition(elementTrigger, elementSelector) {
-      let condition;
-      switch (elementTrigger.toLowerCase().trim()) {
-        case "on click":
-        case "click":
-          condition = {
-            kind: "Dom",
-            event: "click",
-            selector: elementSelector
-          };
-          break;
-        case "on hover":
-        case "hover":
-          condition = {
-            kind: "Dom",
-            event: "hover",
-            selector: elementSelector
-          };
-          break;
-        case "on page load":
-        case "page load":
-          condition = {
-            kind: "Lifecycle",
-            event: "page-load"
-          };
-          break;
-        case "on focus":
-        case "focus":
-          condition = {
-            kind: "Dom",
-            event: "focus",
-            selector: elementSelector
-          };
-          break;
-        default:
-          console.warn(`[DAP] Unknown elementTrigger: ${elementTrigger}, defaulting to click`);
-          condition = {
-            kind: "Dom",
-            event: "click",
-            selector: elementSelector
-          };
-      }
-      return {
-        type: "Single",
-        operator: "And",
-        once: true,
-        conditions: [condition]
-      };
     }
     /**
      * Register trigger listeners for a step (page-aware)
      */
-    registerTriggerListeners(stepId, trigger, onTrigger, flowContext) {
+    registerTriggerListeners(stepId, trigger, onTrigger, flowContext, stepType) {
       pageContextService.getPageId();
-      this._registeredTriggers[stepId] = { trigger, onTrigger, flowContext };
+      this._registeredTriggers[stepId] = { trigger, onTrigger, flowContext, stepType };
       this.removeTriggerListeners(stepId);
+      this._conditionStates.set(stepId, new Array(trigger.conditions.length).fill(false));
       const listeners = [];
-      for (const condition of trigger.conditions) {
-        const listener = this.createConditionListener(stepId, condition, trigger, onTrigger, flowContext);
+      trigger.conditions.forEach((condition, index) => {
+        const listener = this.createConditionListener(stepId, condition, trigger, onTrigger, index, flowContext);
         if (listener) {
           listeners.push(listener);
         }
-      }
+      });
       if (listeners.length > 0) {
         this._activeListeners.set(stepId, listeners);
       }
@@ -10751,16 +10538,16 @@ var DAP = (function (exports) {
     /**
      * Create listener for individual trigger condition
      */
-    createConditionListener(stepId, condition, trigger, onTrigger, flowContext) {
+    createConditionListener(stepId, condition, trigger, onTrigger, conditionIndex, flowContext) {
       switch (condition.kind) {
         case "Dom":
-          return this.createDomListener(stepId, condition, trigger, onTrigger);
+          return this.createDomListener(stepId, condition, trigger, onTrigger, conditionIndex);
         case "Lifecycle":
-          return this.createLifecycleListener(stepId, condition, trigger, onTrigger, flowContext);
+          return this.createLifecycleListener(stepId, condition, trigger, onTrigger, conditionIndex, flowContext);
         case "Input":
-          return this.createInputListener(stepId, condition, trigger, onTrigger);
+          return this.createInputListener(stepId, condition, trigger, onTrigger, conditionIndex);
         case "Time":
-          return this.createTimeListener(stepId, condition, trigger, onTrigger);
+          return this.createTimeListener(stepId, condition, trigger, onTrigger, conditionIndex);
         default:
           console.warn(`[DAP] Unsupported condition kind: ${condition.kind}`);
           return null;
@@ -10770,11 +10557,33 @@ var DAP = (function (exports) {
      * Map trigger events to actual DOM events
      */
     mapTriggerEventToDOMEvents(triggerEvent) {
-      switch (triggerEvent) {
+      const normalized = (triggerEvent || "").toLowerCase().trim();
+      switch (normalized) {
         case "hover":
+        case "mouseenter":
+        case "mouse enter":
           return ["mouseenter"];
+        case "mouseleave":
+        case "mouse leave":
+          return ["mouseleave"];
+        case "mouseover":
+        case "mouse over":
+          return ["mouseover"];
+        case "mouseout":
+        case "mouse out":
+          return ["mouseout"];
         case "click":
           return ["click"];
+        case "dblclick":
+        case "doubleclick":
+        case "double click":
+          return ["dblclick"];
+        case "rightclick":
+        case "right click":
+        case "contextmenu":
+          return ["contextmenu"];
+        case "scroll":
+          return ["scroll"];
         case "focus":
           return ["focus"];
         case "blur":
@@ -10786,13 +10595,13 @@ var DAP = (function (exports) {
         case "submit":
           return ["submit"];
         default:
-          return [triggerEvent];
+          return [normalized || triggerEvent];
       }
     }
     /**
      * Create DOM event listener
      */
-    createDomListener(stepId, condition, trigger, onTrigger) {
+    createDomListener(stepId, condition, trigger, onTrigger, conditionIndex) {
       if (!condition.selector) {
         console.warn(`[DAP] DOM condition missing selector for step: ${stepId}`);
         return null;
@@ -10802,73 +10611,36 @@ var DAP = (function (exports) {
       let targetElement = null;
       let observer = null;
       let timeoutCleanup = null;
-      const isDelegatable = condition.event === "click" || condition.event === "focus" || condition.event === "blur";
-      if (isDelegatable && condition.selector) {
-        console.debug(`[DAP] Using event delegation for "${condition.event}" trigger on selector: ${condition.selector}`);
-        const eventNames = this.mapTriggerEventToDOMEvents(condition.event);
-        const useCapture = condition.event === "focus" || condition.event === "blur";
-        const actualEventNames = useCapture ? eventNames : eventNames.map((name) => name === "focus" ? "focusin" : name === "blur" ? "focusout" : name);
-        const delegatedHandler = (event) => {
-          const eventTarget = event.target;
-          if (!eventTarget) return;
-          let matchedElement = null;
-          try {
-            matchedElement = eventTarget.closest(condition.selector);
-          } catch {
-          }
-          if (!matchedElement) {
-            const allMatches = resolveSelectorAll(condition.selector);
-            matchedElement = allMatches.find((el) => el === eventTarget || el.contains(eventTarget)) || null;
-          }
-          if (matchedElement) {
-            console.debug(`[DAP] Delegated "${condition.event}" event matched selector: ${condition.selector}`);
-            const onceKey = `${stepId}:${condition.kind}:${condition.event}`;
-            if (trigger.once && this._triggeredOnceSet.has(onceKey)) {
-              return;
-            }
-            if (condition.debounceMs) {
-              const debounceKey = `debounce:${stepId}:${condition.event}`;
-              const lastFired = this.getLastFiredTime(debounceKey);
-              const now = Date.now();
-              if (lastFired && now - lastFired < condition.debounceMs) return;
-              this.setLastFiredTime(debounceKey, now);
-            }
-            const context = {
-              stepId,
-              flowId: "",
-              element: matchedElement,
-              event
-            };
-            const result = this.evaluateTrigger(trigger, context);
-            if (result.triggered) {
-              if (trigger.once) {
-                this._triggeredOnceSet.add(onceKey);
-              }
-              onTrigger(context);
-            }
-          }
-        };
-        actualEventNames.forEach((name) => {
-          document.addEventListener(name, delegatedHandler, true);
-        });
-        return () => {
-          actualEventNames.forEach((name) => {
-            document.removeEventListener(name, delegatedHandler, true);
-          });
-        };
-      }
       const attachListener = (element) => {
         if (timeoutCleanup) {
           timeoutCleanup();
           timeoutCleanup = null;
         }
+        const attachedPageId = pageContextService.getPageId();
         const eventNames = this.mapTriggerEventToDOMEvents(condition.event);
         const cleanupFunctions = [];
         console.debug(`[DAP] Mapping trigger event "${condition.event}" to DOM events:`, eventNames);
         for (const eventName of eventNames) {
           const eventHandler = (event) => {
+            const currentPageId = pageContextService.getPageId();
+            if (currentPageId !== attachedPageId) {
+              console.debug(`[DAP] Page changed since listener attached (${attachedPageId} \u2192 ${currentPageId}), ignoring event for step: ${stepId}`);
+              return;
+            }
+            if (eventName === "scroll" && event.target) {
+              const target = event.target;
+              const isGlobalTarget = target === window || target === document;
+              if (isGlobalTarget) {
+                const isGlobalElement = element === document.documentElement || element === document.body || element === window || element === document;
+                if (!isGlobalElement) return;
+              } else {
+                if (target !== element && !element.contains(target) && !target.contains(element)) {
+                  return;
+                }
+              }
+            }
             console.debug(`[DAP] DOM event triggered:`, event.type, condition.selector);
-            const onceKey = `${stepId}:${condition.kind}:${condition.event}`;
+            const onceKey = `${stepId}:${condition.kind}:${condition.event}:${conditionIndex}`;
             if (trigger.once && this._triggeredOnceSet.has(onceKey)) {
               console.debug(`[DAP] Trigger already fired once for: ${onceKey}`);
               return;
@@ -10888,42 +10660,48 @@ var DAP = (function (exports) {
               flowId: "",
               // Will be set by caller
               element,
-              event
+              event,
+              conditionIndex
             };
             if (element && (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement)) {
-              if (condition.event === "input" || condition.event === "change" || condition.event === "keyup") {
+              const normalizedEvt = (condition.event || "").toLowerCase().trim();
+              if (normalizedEvt === "input" || normalizedEvt === "change" || normalizedEvt === "keyup") {
                 context.userInput = element.value;
                 console.debug(`[DAP] Captured input value: "${context.userInput}" for step: ${stepId}`);
               }
             }
+            if (trigger.once) {
+              this._triggeredOnceSet.add(onceKey);
+            }
             const result = this.evaluateTrigger(trigger, context);
             if (result.triggered) {
-              if (trigger.once) {
-                this._triggeredOnceSet.add(onceKey);
-              }
               onTrigger(context);
+            } else if (trigger.once) {
+              this._triggeredOnceSet.delete(onceKey);
             }
           };
-          element.addEventListener(eventName, eventHandler);
+          const isScrollEvent = eventName === "scroll";
+          const eventTarget = isScrollEvent ? window : element;
+          const options = isScrollEvent ? { capture: true, passive: true } : false;
+          eventTarget.addEventListener(eventName, eventHandler, options);
+          if ((eventName === "mouseover" || eventName === "mouseenter") && element.matches(":hover")) {
+            console.debug(`[DAP] Mouse already hovering over element, auto-firing ${eventName} for step: ${stepId}`);
+            setTimeout(() => {
+              eventHandler(new MouseEvent(eventName, { bubbles: true, cancelable: true, view: window }));
+            }, 0);
+          }
           cleanupFunctions.push(() => {
-            element.removeEventListener(eventName, eventHandler);
+            eventTarget.removeEventListener(eventName, eventHandler, options);
           });
         }
         return () => {
           cleanupFunctions.forEach((cleanup) => cleanup());
         };
       };
-      if (validation.exists) {
-        try {
-          targetElement = resolveSelector(condition.selector);
-          if (targetElement) {
-            console.debug(`[DAP] Element found immediately for selector: ${condition.selector}`);
-            return attachListener(targetElement);
-          }
-        } catch (error) {
-          console.warn(`[DAP] Invalid selector: ${condition.selector}`, error);
-          return null;
-        }
+      targetElement = resolveSelectorWithCache(stepId, condition.selector);
+      if (targetElement) {
+        console.debug(`[DAP] Element found immediately for selector: ${condition.selector}`);
+        return attachListener(targetElement);
       }
       console.debug(`[DAP] Element not found, waiting for: ${condition.selector}`);
       let listenerCleanup = null;
@@ -10933,15 +10711,24 @@ var DAP = (function (exports) {
           observer.disconnect();
           observer = null;
         }
-        console.warn(`[DAP] \u{1F4CA} Telemetry: selector-not-found - Step: ${stepId}, Selector: ${condition.selector}`);
-        if (this._onSelectorTimeout) {
-          this._onSelectorTimeout(stepId, condition.selector);
+        console.warn(`[DAP] \u26A0\uFE0F Selector timeout for step ${stepId}: ${condition.selector}`);
+        const stepType = this._registeredTriggers[stepId]?.stepType || "Optional";
+        if (stepType === "Mandatory") {
+          console.error(`[DAP] \u{1F6AB} Mandatory step "${stepId}" selector "${condition.selector}" not found after timeout \u2014 flow is now blocked`);
+          window.dispatchEvent(new CustomEvent("dap:stepSelectorTimeout", { detail: { stepId, selector: condition.selector, stepType: "Mandatory", blocked: true } }));
+        } else {
+          console.warn(`[DAP] \u23E9 Optional step "${stepId}" selector "${condition.selector}" not found \u2014 advancing past step`);
+          window.dispatchEvent(new CustomEvent("dap:stepSelectorTimeout", { detail: { stepId, selector: condition.selector, stepType: "Optional", blocked: false } }));
+          const reg = this._registeredTriggers[stepId];
+          if (reg) {
+            reg.onTrigger({ stepId, flowId: "", element: null, event: null });
+          }
         }
       });
       timeoutCleanup = () => this.clearTimeoutForStep(stepId);
       observer = new MutationObserver(() => {
         try {
-          const element = resolveSelector(condition.selector);
+          const element = resolveSelectorWithCache(stepId, condition.selector);
           if (element && element !== targetElement) {
             targetElement = element;
             console.debug(`[DAP] Element appeared: ${condition.selector}`);
@@ -10969,12 +10756,16 @@ var DAP = (function (exports) {
     /**
      * Create lifecycle event listener (page-aware)
      */
-    createLifecycleListener(stepId, condition, trigger, onTrigger, flowContext) {
-      switch (condition.event) {
+    createLifecycleListener(stepId, condition, trigger, onTrigger, conditionIndex, flowContext) {
+      const normalizedEvent = (condition.event || "").toLowerCase().trim();
+      switch (normalizedEvent) {
+        case "load":
+        // alias sent by server
         case "page-load":
-          const onceKey = `${stepId}:${condition.kind}:${condition.event}`;
+          const onceKey = `${stepId}:${condition.kind}:${condition.event}:${conditionIndex}`;
           const shouldFireImmediately = !trigger.once || !this._triggeredOnceSet.has(onceKey);
           if (shouldFireImmediately) {
+            const staggerMs = 100 + conditionIndex * 150;
             setTimeout(() => {
               const context = {
                 stepId,
@@ -10983,7 +10774,8 @@ var DAP = (function (exports) {
                 pageState: {
                   loaded: true,
                   pageId: pageContextService.getPageId()
-                }
+                },
+                conditionIndex
               };
               const result = this.evaluateTrigger(trigger, context);
               if (result.triggered) {
@@ -10992,12 +10784,12 @@ var DAP = (function (exports) {
                 }
                 onTrigger(context);
               }
-            }, 100);
+            }, staggerMs);
           }
           const pageChangeUnsubscribe = pageContextService.subscribe((event) => {
             if (event.type === "navigation" || event.type === "reload") {
               console.debug(`[DAP] Page change detected for page-load trigger, step: ${stepId}`);
-              const pageLoadOnceKey = `${stepId}:${condition.kind}:${condition.event}`;
+              const pageLoadOnceKey = `${stepId}:${condition.kind}:${condition.event}:${conditionIndex}`;
               if (trigger.once && event.type === "navigation") {
                 this._triggeredOnceSet.delete(pageLoadOnceKey);
               }
@@ -11010,7 +10802,8 @@ var DAP = (function (exports) {
                     loaded: true,
                     pageId: pageContextService.getPageId(),
                     navigationEvent: event
-                  }
+                  },
+                  conditionIndex
                 };
                 const result = this.evaluateTrigger(trigger, context);
                 if (result.triggered) {
@@ -11025,25 +10818,125 @@ var DAP = (function (exports) {
           return () => {
             pageChangeUnsubscribe();
           };
-        case "page-unload":
-          const unloadHandler = () => {
+        case "dom-ready":
+        case "domready":
+        case "dom ready":
+        case "domcontentloaded":
+          const domReadyOnceKey = `${stepId}:${condition.kind}:${condition.event}:${conditionIndex}`;
+          const shouldFireDomReady = !trigger.once || !this._triggeredOnceSet.has(domReadyOnceKey);
+          if (shouldFireDomReady) {
+            if (trigger.once) this._triggeredOnceSet.add(domReadyOnceKey);
+            const domReadyHandler = () => {
+              const context = {
+                stepId,
+                flowId: "",
+                pageState: { loaded: true, pageId: pageContextService.getPageId() },
+                conditionIndex
+              };
+              const result = this.evaluateTrigger(trigger, context);
+              if (result.triggered) {
+                onTrigger(context);
+              } else if (trigger.once) {
+                this._triggeredOnceSet.delete(domReadyOnceKey);
+              }
+            };
+            const staggerMs = 50 + conditionIndex * 150;
+            if (document.readyState === "complete" || document.readyState === "interactive") {
+              setTimeout(domReadyHandler, staggerMs);
+            } else {
+              document.addEventListener("DOMContentLoaded", () => setTimeout(domReadyHandler, staggerMs), { once: true });
+            }
+          }
+          return () => {
+          };
+        case "before-unload":
+        case "beforeunload":
+        case "before unload":
+          const beforeOnceKey = `${stepId}:${condition.kind}:${condition.event}:${conditionIndex}`;
+          const beforeHandler = (event) => {
+            if (trigger.once && this._triggeredOnceSet.has(beforeOnceKey)) return;
+            if (trigger.once) this._triggeredOnceSet.add(beforeOnceKey);
             const context = {
               stepId,
               flowId: "",
-              pageState: {
-                unloading: true,
-                pageId: pageContextService.getPageId()
-              }
+              event,
+              conditionIndex
             };
             const result = this.evaluateTrigger(trigger, context);
             if (result.triggered) {
               onTrigger(context);
+            } else if (trigger.once) {
+              this._triggeredOnceSet.delete(beforeOnceKey);
             }
           };
-          window.addEventListener("beforeunload", unloadHandler);
-          return () => {
-            window.removeEventListener("beforeunload", unloadHandler);
+          window.addEventListener("beforeunload", beforeHandler);
+          return () => window.removeEventListener("beforeunload", beforeHandler);
+        case "page-unload":
+        case "unload":
+        case "page unload":
+          const unloadOnceKey = `${stepId}:${condition.kind}:${condition.event}:${conditionIndex}`;
+          const unloadHandler = (event) => {
+            if (trigger.once && this._triggeredOnceSet.has(unloadOnceKey)) return;
+            if (trigger.once) this._triggeredOnceSet.add(unloadOnceKey);
+            const context = {
+              stepId,
+              flowId: "",
+              event,
+              conditionIndex
+            };
+            const result = this.evaluateTrigger(trigger, context);
+            if (result.triggered) {
+              onTrigger(context);
+            } else if (trigger.once) {
+              this._triggeredOnceSet.delete(unloadOnceKey);
+            }
           };
+          window.addEventListener("unload", unloadHandler);
+          return () => window.removeEventListener("unload", unloadHandler);
+        case "window-resize":
+        case "resize":
+        case "window resize":
+          const resizeOnceKey = `${stepId}:${condition.kind}:${condition.event}:${conditionIndex}`;
+          const resizeHandler = (event) => {
+            if (trigger.once && this._triggeredOnceSet.has(resizeOnceKey)) return;
+            if (trigger.once) this._triggeredOnceSet.add(resizeOnceKey);
+            const context = {
+              stepId,
+              flowId: "",
+              event,
+              conditionIndex
+            };
+            const result = this.evaluateTrigger(trigger, context);
+            if (result.triggered) {
+              onTrigger(context);
+            } else if (trigger.once) {
+              this._triggeredOnceSet.delete(resizeOnceKey);
+            }
+          };
+          window.addEventListener("resize", resizeHandler);
+          return () => window.removeEventListener("resize", resizeHandler);
+        case "orientation-change":
+        case "orientationchange":
+        case "orientation change":
+          const orientOnceKey = `${stepId}:${condition.kind}:${condition.event}:${conditionIndex}`;
+          const orientHandler = (event) => {
+            if (trigger.once && this._triggeredOnceSet.has(orientOnceKey)) return;
+            if (trigger.once) this._triggeredOnceSet.add(orientOnceKey);
+            const context = {
+              stepId,
+              flowId: "",
+              event,
+              conditionIndex
+            };
+            const result = this.evaluateTrigger(trigger, context);
+            if (result.triggered) {
+              onTrigger(context);
+            } else if (trigger.once) {
+              this._triggeredOnceSet.delete(orientOnceKey);
+            }
+          };
+          window.addEventListener("orientationchange", orientHandler);
+          return () => window.removeEventListener("orientationchange", orientHandler);
         default:
           console.warn(`[DAP] Unsupported lifecycle event: ${condition.event}`);
           return null;
@@ -11052,7 +10945,7 @@ var DAP = (function (exports) {
     /**
      * Create input event listener
      */
-    createInputListener(stepId, condition, trigger, onTrigger) {
+    createInputListener(stepId, condition, trigger, onTrigger, conditionIndex) {
       if (!condition.selector) {
         console.warn(`[DAP] Input condition missing selector for step: ${stepId}`);
         return null;
@@ -11074,7 +10967,8 @@ var DAP = (function (exports) {
             flowId: "",
             element: target,
             event,
-            userInput: value
+            userInput: value,
+            conditionIndex
           };
           const result = this.evaluateTrigger(trigger, context);
           if (result.triggered) {
@@ -11082,9 +10976,9 @@ var DAP = (function (exports) {
           }
         }
       };
-      const elements = resolveSelectorAll(condition.selector);
-      if (elements.length === 0) {
-        console.log(`[DAP] Input elements not found, waiting: ${condition.selector}`);
+      const element = resolveSelectorWithCache(stepId, condition.selector);
+      if (!element) {
+        console.debug(`[DAP] Input element not found, waiting: ${condition.selector}`);
         this.setupSelectorTimeout(stepId, condition.selector, () => {
           console.warn(`[DAP] \u26A0\uFE0F Input selector timeout for step ${stepId}: ${condition.selector}`);
           console.warn(`[DAP] \u{1F4CA} Telemetry: input-selector-not-found - Step: ${stepId}, Selector: ${condition.selector}`);
@@ -11093,14 +10987,12 @@ var DAP = (function (exports) {
           }
         });
         const observer = new MutationObserver(() => {
-          const foundElements = resolveSelectorAll(condition.selector);
-          if (foundElements.length > 0) {
-            console.log(`[DAP] Input elements appeared: ${condition.selector}`);
+          const foundElement = resolveSelectorWithCache(stepId, condition.selector);
+          if (foundElement) {
+            console.debug(`[DAP] Input element appeared: ${condition.selector}`);
             this.clearTimeoutForStep(stepId);
-            foundElements.forEach((element) => {
-              element.addEventListener("input", inputHandler);
-              element.addEventListener("change", inputHandler);
-            });
+            foundElement.addEventListener("input", inputHandler);
+            foundElement.addEventListener("change", inputHandler);
             observer.disconnect();
           }
         });
@@ -11111,35 +11003,32 @@ var DAP = (function (exports) {
         return () => {
           this.clearTimeoutForStep(stepId);
           observer.disconnect();
-          const foundElements = resolveSelectorAll(condition.selector);
-          foundElements.forEach((element) => {
-            element.removeEventListener("input", inputHandler);
-            element.removeEventListener("change", inputHandler);
-          });
+          const attachedElement = resolveSelectorWithCache(stepId, condition.selector);
+          if (attachedElement) {
+            attachedElement.removeEventListener("input", inputHandler);
+            attachedElement.removeEventListener("change", inputHandler);
+          }
         };
       }
-      console.debug(`[DAP] \u2705 Input elements found immediately: ${elements.length} element(s)`);
-      elements.forEach((element) => {
-        element.addEventListener("input", inputHandler);
-        element.addEventListener("change", inputHandler);
-      });
+      console.debug(`[DAP] \u2705 Input element found immediately for selector: ${condition.selector}`);
+      element.addEventListener("input", inputHandler);
+      element.addEventListener("change", inputHandler);
       return () => {
-        elements.forEach((element) => {
-          element.removeEventListener("input", inputHandler);
-          element.removeEventListener("change", inputHandler);
-        });
+        element.removeEventListener("input", inputHandler);
+        element.removeEventListener("change", inputHandler);
       };
     }
     /**
      * Create time-based listener
      */
-    createTimeListener(stepId, condition, trigger, onTrigger) {
+    createTimeListener(stepId, condition, trigger, onTrigger, conditionIndex) {
       const delay = typeof condition.value === "number" ? condition.value : 1e3;
       const timeoutId = setTimeout(() => {
         const context = {
           stepId,
           flowId: "",
-          pageState: { timeElapsed: delay }
+          pageState: { timeElapsed: delay },
+          conditionIndex
         };
         const result = this.evaluateTrigger(trigger, context);
         if (result.triggered) {
@@ -11157,9 +11046,18 @@ var DAP = (function (exports) {
       const startTime = Date.now();
       let matchedConditions = 0;
       const totalConditions = trigger.conditions.length;
-      if (trigger.type === "Single" && totalConditions === 1) {
-        matchedConditions = 1;
-      } else if (trigger.type === "Composite") {
+      const cIndex = context.conditionIndex;
+      if (trigger.type === "Composite" || totalConditions > 1) {
+        if (!this._conditionStates.has(context.stepId)) {
+          this._conditionStates.set(context.stepId, new Array(totalConditions).fill(false));
+        }
+        const states = this._conditionStates.get(context.stepId);
+        if (typeof cIndex === "number" && cIndex < states.length) {
+          states[cIndex] = true;
+          console.debug(`[DAP] Composite condition ${cIndex} met for step ${context.stepId}`);
+        }
+        matchedConditions = states.filter((s) => s).length;
+      } else {
         matchedConditions = 1;
       }
       let triggered = false;
@@ -11167,6 +11065,16 @@ var DAP = (function (exports) {
         triggered = matchedConditions === totalConditions;
       } else if (trigger.operator === "Or") {
         triggered = matchedConditions > 0;
+      }
+      if (triggered && !trigger.once) {
+        const states = this._conditionStates.get(context.stepId);
+        if (states) {
+          trigger.conditions.forEach((c, idx) => {
+            if (c.kind === "Dom" || c.kind === "Input") {
+              states[idx] = false;
+            }
+          });
+        }
       }
       const result = {
         triggered,
@@ -11242,6 +11150,17 @@ var DAP = (function (exports) {
       }
     }
     /**
+     * ✅ Fix #2: Fully unregister a trigger — removes active listeners AND the stored registration.
+     * Call this when a step completes so that page-change re-registration cannot re-trigger it.
+     */
+    unregisterTrigger(stepId) {
+      this.removeTriggerListeners(stepId);
+      delete this._registeredTriggers[stepId];
+      this._conditionStates.delete(stepId);
+      evictSelectorCacheEntry(stepId);
+      console.debug(`[DAP] Fully unregistered trigger for completed step: ${stepId}`);
+    }
+    /**
      * Clear all listeners
      */
     clearAllListeners() {
@@ -11252,6 +11171,7 @@ var DAP = (function (exports) {
       this._triggeredOnceSet.clear();
       this._registeredTriggers = {};
       this.clearAllTimeouts();
+      clearSelectorCache();
     }
     /**
      * Clear all active timeouts
@@ -11302,6 +11222,9 @@ var DAP = (function (exports) {
      */
     resetOnceTriggersForFlow(flowId) {
       this._triggeredOnceSet.clear();
+      this._conditionStates.clear();
+      this._registeredTriggers = {};
+      clearSelectorCache();
     }
     getLastFiredTime(key) {
       return this._debounceTimestamps.get(key);
@@ -11309,216 +11232,49 @@ var DAP = (function (exports) {
     setLastFiredTime(key, timestamp) {
       this._debounceTimestamps.set(key, timestamp);
     }
-    /**
-     * Unregister all triggers for a specific flow (used when aborting)
-     */
-    unregisterAllTriggersForFlow(flowId) {
-      console.debug(`[DAP] Unregistering all triggers for flow: ${flowId}`);
-      this.resetOnceTriggersForFlow(flowId);
-    }
-    onSelectorTimeout(callback) {
-      this._onSelectorTimeout = callback;
-    }
   };
   var triggerManager = TriggerManager.getInstance();
 
-  // src/utils/prompt.ts
-  var pendingPromise = null;
-  async function showDapExperiencePrompt() {
-    const sessionChoice = sessionStorage.getItem("dap_experience_choice");
-    if (sessionChoice === "yes") return true;
-    if (sessionChoice === "no") return false;
-    if (pendingPromise) return pendingPromise;
-    pendingPromise = new Promise((resolve) => {
-      if (!document.getElementById("dap-modal-styles")) {
-        const style = document.createElement("style");
-        style.id = "dap-modal-styles";
-        style.textContent = modalCssText;
-        document.head.appendChild(style);
-      }
-      const overlay = document.createElement("div");
-      overlay.className = "dap-modal-overlay";
-      overlay.style.zIndex = "2147483647";
-      const modal = document.createElement("div");
-      modal.className = "dap-modal";
-      modal.style.minHeight = "auto";
-      modal.style.width = "450px";
-      const header = document.createElement("div");
-      header.className = "dap-modal-header";
-      const title = document.createElement("h2");
-      title.className = "dap-modal-title";
-      title.textContent = "Experience Enhancement";
-      header.appendChild(title);
-      const body = document.createElement("div");
-      body.className = "dap-modal-body";
-      body.style.textAlign = "center";
-      body.style.padding = "32px 24px";
-      const message = document.createElement("p");
-      message.style.fontSize = "18px";
-      message.style.margin = "0 0 24px 0";
-      message.style.fontWeight = "500";
-      message.textContent = "Do you want to enable the DAP experience?";
-      body.appendChild(message);
-      const submessage = document.createElement("p");
-      submessage.style.fontSize = "14px";
-      submessage.style.color = "#64748b";
-      submessage.style.margin = "0";
-      submessage.textContent = "Gain access to interactive guides and tooltips to help you navigate efficiently.";
-      body.appendChild(submessage);
-      const footer = document.createElement("div");
-      footer.className = "dap-modal-footer";
-      footer.style.justifyContent = "center";
-      footer.style.gap = "16px";
-      const noBtn = document.createElement("button");
-      noBtn.className = "dap-modal-button secondary";
-      noBtn.textContent = "Later";
-      noBtn.style.flex = "1";
-      const yesBtn = document.createElement("button");
-      yesBtn.className = "dap-modal-button primary";
-      yesBtn.textContent = "Yes, please!";
-      yesBtn.style.flex = "1";
-      footer.appendChild(noBtn);
-      footer.appendChild(yesBtn);
-      modal.appendChild(header);
-      modal.appendChild(body);
-      modal.appendChild(footer);
-      overlay.appendChild(modal);
-      document.documentElement.appendChild(overlay);
-      const cleanup = (choice) => {
-        overlay.style.animation = "modalFadeOut 0.2s ease-in";
-        modal.style.animation = "modalSlideOut 0.2s ease-in";
-        sessionStorage.setItem("dap_experience_choice", choice ? "yes" : "no");
-        setTimeout(() => {
-          overlay.remove();
-          pendingPromise = null;
-          resolve(choice);
-        }, 200);
-      };
-      yesBtn.onclick = () => cleanup(true);
-      noBtn.onclick = () => cleanup(false);
-    });
-    return pendingPromise;
-  }
-
   // src/core/flowEngine.ts
-  function resolveSelectorAll2(selector, root = document) {
-    if (!selector || typeof selector !== "string") return [];
-    try {
-      const cssElements = root.querySelectorAll(selector);
-      if (cssElements.length > 0) return Array.from(cssElements);
-    } catch {
-    }
-    try {
-      const doc = root instanceof Document ? root : root.ownerDocument ?? document;
-      const result = doc.evaluate(
-        selector,
-        root,
-        null,
-        XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-        null
-      );
-      const elements = [];
-      for (let i = 0; i < result.snapshotLength; i++) {
-        const element = result.snapshotItem(i);
-        if (element) elements.push(element);
-      }
-      return elements;
-    } catch {
-      return [];
-    }
-  }
   var FlowEngine = class _FlowEngine {
     constructor() {
-      this._locationService = LocationContextService.getInstance();
-      this._states = /* @__PURE__ */ new Map();
-      this._flows = /* @__PURE__ */ new Map();
-      this._primaryFlowId = null;
-      // Track the most recently started flow as primary
-      this._stepTriggerListeners = /* @__PURE__ */ new Map();
-      this._pageChangeUnsubscribe = null;
-      this._domObservers = /* @__PURE__ */ new Map();
-      // CRITICAL FIX 2: Debounced Rule Evaluation System
-      this._ruleEvaluationTimers = /* @__PURE__ */ new Map();
-      this._inputStabilityTimers = /* @__PURE__ */ new Map();
-      this._defaultDebounceDelay = 500;
-      // 500ms for input triggers
-      this._inputStabilityMinLength = 3;
-      // 🚨 CRITICAL FIX: Minimum 3 characters for meaningful rule evaluation
-      // CRITICAL FIX 3: Input Stability Tracking
-      this._lastInputValues = /* @__PURE__ */ new Map();
-      this._inputStabilityChecks = /* @__PURE__ */ new Map();
-      pageContextService.initialize();
-      triggerManager.initialize();
-      this._pageChangeUnsubscribe = this._locationService.subscribe((context) => {
-        this.checkFlowResumption();
-      });
-      pageContextService.subscribe(this.handlePageChange.bind(this));
-      triggerManager.onSelectorTimeout((stepId, selector) => {
-        if (!this._currentFlow || !this._state.flowInProgress) return;
-        const step = this._currentFlow.steps[this._state.activeStep];
-        if (step && step.stepId === stepId) {
-          console.warn(`[DAP] \u{1F6E1}\uFE0F Recovery: Selector timeout for active step ${stepId}. Checking fail-soft policy.`);
-          if (step.stepType === "Optional" || !step.stepType) {
-            console.warn(`[DAP] \u23ED\uFE0F Step is Optional (or untyped). Auto-advancing to next step.`);
-            this.advanceToNextStep();
-          } else {
-            console.error(`[DAP] \u{1F6D1} Step is Mandatory. Flow will remain in current state until element appears.`);
-          }
-        }
-      });
-    }
-    _getFlowState(flowId) {
-      let state = this._states.get(flowId);
-      if (!state) {
-        state = {
-          activeFlowId: flowId,
-          flowInProgress: false,
-          activeStep: 0,
-          activeStepTriggered: false,
-          executionState: "TERMINATED",
-          executionMode: "Linear",
-          triggeredSteps: /* @__PURE__ */ new Set()
-        };
-        this._states.set(flowId, state);
-      }
-      return state;
-    }
-    /**
-     * Compatibility getter for the "current" state
-     */
-    get _state() {
-      if (this._primaryFlowId) {
-        return this._getFlowState(this._primaryFlowId);
-      }
-      return {
+      this._state = {
         activeFlowId: null,
         flowInProgress: false,
         activeStep: 0,
         activeStepTriggered: false,
         executionState: "TERMINATED",
         executionMode: "Linear",
-        triggeredSteps: /* @__PURE__ */ new Set()
+        triggeredSteps: /* @__PURE__ */ new Set(),
+        runCounted: false,
+        anyOrderStepInProgress: false,
+        inProgressSteps: /* @__PURE__ */ new Set()
       };
-    }
-    set _state(value) {
-      if (value.activeFlowId) {
-        this._states.set(value.activeFlowId, value);
-        this._primaryFlowId = value.activeFlowId;
-      }
+      this._currentFlow = null;
+      this._stepTriggerListeners = /* @__PURE__ */ new Map();
+      this._domObservers = /* @__PURE__ */ new Map();
+      this._onFlowEnd = null;
+      // CRITICAL FIX 2: Debounced Rule Evaluation System
+      this._ruleEvaluationTimers = /* @__PURE__ */ new Map();
+      this._inputStabilityMinLength = 2;
+      // Minimum chars before rule evaluation fires (single chars are not meaningful)
+      // CRITICAL FIX 3: Input Stability Tracking
+      this._lastInputValues = /* @__PURE__ */ new Map();
+      this._inputStabilityChecks = /* @__PURE__ */ new Map();
+      // Mandatory-step completion tracking (cleared on each flow reset)
+      this._completedMandatorySteps = /* @__PURE__ */ new Set();
+      // ✅ Fix #3: Queue for one-shot triggers that fired while the concurrency lock was held
+      this._pendingAnyOrderSteps = [];
+      pageContextService.initialize();
+      triggerManager.initialize();
+      pageContextService.subscribe(this.handlePageChange.bind(this));
     }
     /**
-     * Compatibility getter for the "current" flow
+     * Register a callback that fires whenever a flow ends (completed or aborted).
+     * Used by index.ts to advance the sequential flow queue (Bug B fix).
      */
-    get _currentFlow() {
-      return this._primaryFlowId ? this._flows.get(this._primaryFlowId) || null : null;
-    }
-    set _currentFlow(value) {
-      if (value) {
-        this._flows.set(value.flowId, value);
-        this._primaryFlowId = value.flowId;
-      } else if (this._primaryFlowId) {
-        this._primaryFlowId = null;
-      }
+    setOnFlowEndCallback(cb) {
+      this._onFlowEnd = cb;
     }
     /**
      * Handle page changes and re-evaluate active flows
@@ -11526,34 +11282,41 @@ var DAP = (function (exports) {
     handlePageChange(event) {
       console.debug("[DAP] FlowEngine: Handling page change:", event.type, {
         from: event.previous?.pathname,
-        to: event.current.pathname
+        to: event.current.pathname,
+        activeFlow: this._state.activeFlowId
       });
-      for (const [flowId, state] of this._states) {
-        if (state.flowInProgress) {
-          this.reRegisterFlowTriggers(flowId);
-        }
+      if (this._state.flowInProgress && this._currentFlow) {
+        this.reRegisterActiveStepTriggers();
       }
-      this.checkFlowResumption();
     }
     /**
-     * Re-register triggers for a specific flow after page change
+     * Re-register triggers for the currently active step(s) after page change
      */
-    reRegisterFlowTriggers(flowId) {
-      const state = this._getFlowState(flowId);
-      const flow = this._flows.get(flowId);
-      if (!flow || !state.flowInProgress) {
+    reRegisterActiveStepTriggers() {
+      if (!this._currentFlow || !this._state.flowInProgress) {
         return;
       }
-      console.debug(`[DAP] FlowEngine: Re-registering triggers for flow ${flowId} after page change`);
-      if (state.executionMode === "Linear") {
-        if (state.activeStep < flow.steps.length && !state.activeStepTriggered) {
-          const currentStep = flow.steps[state.activeStep];
-          this.setupStepTrigger(currentStep, state.activeStep, flowId);
+      console.debug("[DAP] FlowEngine: Re-registering triggers after page change");
+      if (this._state.executionMode === "Linear") {
+        if (this._state.activeStep < this._currentFlow.steps.length && !this._state.activeStepTriggered) {
+          const currentStep = this._currentFlow.steps[this._state.activeStep];
+          this.executeStepWithTrigger(currentStep, this._state.activeStep);
         }
       } else {
-        flow.steps.forEach((step, index) => {
-          if (!state.triggeredSteps.has(index)) {
-            this.setupStepTrigger(step, index, flowId);
+        this._currentFlow.steps.forEach((step, index) => {
+          if (this._state.triggeredSteps.has(index)) {
+            triggerManager.unregisterTrigger(step.stepId);
+          } else if (this._state.inProgressSteps.has(index)) {
+            if (!this.isStepContextActive(step)) {
+              console.debug(
+                `[DAP] AnyOrder: page changed away from in-progress step ${step.stepId} \u2014 resetting in-progress state`
+              );
+              this._state.inProgressSteps.delete(index);
+              this._state.anyOrderStepInProgress = false;
+              this.setupStepTrigger(step, index);
+            }
+          } else {
+            this.setupStepTrigger(step, index);
           }
         });
       }
@@ -11569,7 +11332,12 @@ var DAP = (function (exports) {
      * Implements the OneTime + maxRuns = 1 validation as required
      */
     validateFlowFrequency(flowData) {
-      console.log(`[DAP] \u{1F50D} Validating frequency for flow ${flowData.flowId}`);
+      const previewMode = detectPreviewMode();
+      if (previewMode.isPreviewMode) {
+        console.debug(`[DAP] \u{1F7E2} PREVIEW MODE: Bypassing frequency validation for flow ${flowData.flowId}`);
+        return true;
+      }
+      console.debug(`[DAP] \u{1F50D} Validating frequency for flow ${flowData.flowId}`);
       if (!flowData.execution) {
         console.warn(`[DAP] No execution config found for flow ${flowData.flowId}, allowing by default`);
         return true;
@@ -11579,39 +11347,41 @@ var DAP = (function (exports) {
         console.warn(`[DAP] No frequency config found for flow ${flowData.flowId}, allowing by default`);
         return true;
       }
-      console.log(`[DAP] Flow frequency config:`, {
+      if (frequency.type === "Always") {
+        console.debug(`[DAP] \u2705 FLOW ELIGIBLE: ${flowData.flowId} (Always frequency \u2014 no throttle)`);
+        return true;
+      }
+      console.debug(`[DAP] Flow frequency config:`, {
         type: frequency.type,
         maxRuns: frequency.maxRuns,
         flowId: flowData.flowId
       });
-      if (frequency.type === "OneTime") {
+      if (frequency.type === "OneTime" || frequency.type === "Recurring") {
         const maxRuns = frequency.maxRuns || 1;
         const flowRunKey = `dap_flow_runs_${flowData.flowId}`;
         const flowCompletedKey = `dap_flow_completed_${flowData.flowId}`;
         try {
-          const completionData = localStorage.getItem(flowCompletedKey);
-          if (completionData) {
-            try {
-              const completion = JSON.parse(completionData);
-              console.log(`[DAP] \u{1F6D1} FLOW BLOCKED: ${flowData.flowId} was completed via ${completion.reason} at ${new Date(completion.timestamp).toISOString()}`);
-              console.log(`[DAP] \u{1F3AF} This enforces: "Flow is completed when a rule-based step branches to a new flow"`);
-              return false;
-            } catch {
-              console.log(`[DAP] \u{1F6D1} FLOW BLOCKED: ${flowData.flowId} was previously completed`);
-              return false;
+          if (frequency.type === "OneTime") {
+            const completionData = localStorage.getItem(flowCompletedKey);
+            if (completionData) {
+              try {
+                const completion = JSON.parse(completionData);
+                console.debug(`[DAP] \u{1F6D1} FLOW BLOCKED: OneTime flow ${flowData.flowId} was completed via ${completion.reason} at ${new Date(completion.timestamp).toISOString()}`);
+                return false;
+              } catch {
+                console.debug(`[DAP] \u{1F6D1} FLOW BLOCKED: OneTime flow ${flowData.flowId} was previously completed`);
+                return false;
+              }
             }
           }
           const storedRuns = localStorage.getItem(flowRunKey);
           const currentRuns = storedRuns ? parseInt(storedRuns, 10) : 0;
-          console.log(`[DAP] OneTime flow ${flowData.flowId}: ${currentRuns}/${maxRuns} runs`);
+          console.debug(`[DAP] ${frequency.type} flow ${flowData.flowId}: ${currentRuns}/${maxRuns} eligible runs`);
           if (currentRuns >= maxRuns) {
-            console.log(`[DAP] \u{1F6D1} FLOW BLOCKED: ${flowData.flowId} has reached maxRuns limit (${currentRuns}/${maxRuns})`);
-            console.log(`[DAP] \u{1F3AF} This enforces the OneTime + maxRuns = 1 invariant`);
+            console.debug(`[DAP] \u{1F6D1} FLOW BLOCKED: ${flowData.flowId} has reached maxRuns limit (${currentRuns}/${maxRuns})`);
             return false;
           }
-          const newRunCount = currentRuns + 1;
-          localStorage.setItem(flowRunKey, newRunCount.toString());
-          console.log(`[DAP] \u2705 FLOW ALLOWED: ${flowData.flowId} (${newRunCount}/${maxRuns} runs)`);
+          console.debug(`[DAP] \u2705 FLOW ELIGIBLE: ${flowData.flowId} (${currentRuns}/${maxRuns} runs)`);
           return true;
         } catch (error) {
           console.error(`[DAP] Error checking flow frequency for ${flowData.flowId}:`, error);
@@ -11619,11 +11389,61 @@ var DAP = (function (exports) {
         }
       }
       if (frequency.type === "Daily" || frequency.type === "Weekly" || frequency.type === "Monthly") {
-        console.log(`[DAP] \u2705 FLOW ALLOWED: ${flowData.flowId} (${frequency.type} frequency not yet implemented)`);
-        return true;
+        const windowMs = frequency.type === "Daily" ? 864e5 : (
+          // 24 h
+          frequency.type === "Weekly" ? 6048e5 : (
+            // 7 days
+            2592e6
+          )
+        );
+        const lastRunKey = `dap_flow_last_run_${flowData.flowId}`;
+        try {
+          const lastRun = localStorage.getItem(lastRunKey);
+          if (lastRun) {
+            const elapsed = Date.now() - parseInt(lastRun, 10);
+            if (elapsed < windowMs) {
+              const remaining = Math.ceil((windowMs - elapsed) / 6e4);
+              console.debug(`[DAP] \u{1F6D1} FLOW BLOCKED: ${flowData.flowId} (${frequency.type} \u2014 ${remaining} min remaining in window)`);
+              return false;
+            }
+          }
+          console.debug(`[DAP] \u2705 FLOW ELIGIBLE: ${flowData.flowId} (${frequency.type} frequency)`);
+          return true;
+        } catch (error) {
+          console.error(`[DAP] Error checking ${frequency.type} frequency for ${flowData.flowId}:`, error);
+          return true;
+        }
       }
-      console.log(`[DAP] \u2705 FLOW ALLOWED: ${flowData.flowId} (unknown frequency type: ${frequency.type})`);
+      console.debug(`[DAP] \u2705 FLOW ELIGIBLE: ${flowData.flowId} (unknown frequency type: ${frequency.type})`);
       return true;
+    }
+    /**
+     * 🚨 CRITICAL FIX: Increment flow run count in localStorage
+     * Only called when the flow actually starts (first trigger fires)
+     */
+    incrementFlowRunCount(flowData) {
+      const frequency = flowData.execution?.frequency;
+      if (!frequency) return;
+      if (frequency.type === "OneTime" || frequency.type === "Recurring") {
+        const flowRunKey = `dap_flow_runs_${flowData.flowId}`;
+        try {
+          const storedRuns = localStorage.getItem(flowRunKey);
+          const currentRuns = storedRuns ? parseInt(storedRuns, 10) : 0;
+          const newRunCount = currentRuns + 1;
+          localStorage.setItem(flowRunKey, newRunCount.toString());
+          console.debug(`[DAP] \u{1F4C8} FLOW RUN COUNTED: ${flowData.flowId} now at ${newRunCount}/${frequency.maxRuns || 1}`);
+        } catch (error) {
+          console.error(`[DAP] Error incrementing run count for ${flowData.flowId}:`, error);
+        }
+      } else if (frequency.type === "Daily" || frequency.type === "Weekly" || frequency.type === "Monthly") {
+        const lastRunKey = `dap_flow_last_run_${flowData.flowId}`;
+        try {
+          localStorage.setItem(lastRunKey, Date.now().toString());
+          console.debug(`[DAP] \u{1F4C8} FLOW RUN RECORDED: ${flowData.flowId} (${frequency.type} window started at ${(/* @__PURE__ */ new Date()).toISOString()})`);
+        } catch (error) {
+          console.error(`[DAP] Error recording last-run timestamp for ${flowData.flowId}:`, error);
+        }
+      }
     }
     /**
      * Check if flow requires user context
@@ -11635,8 +11455,8 @@ var DAP = (function (exports) {
           for (const ruleBlock of step.conditionRuleBlocks) {
             if (ruleBlock.conditions) {
               for (const condition of ruleBlock.conditions) {
-                if (condition.property?.startsWith("user.")) {
-                  console.debug(`[DAP] Flow ${flowData.flowId} requires user context due to rule: ${condition.property}`);
+                if (condition.propertyName?.startsWith("user.")) {
+                  console.debug(`[DAP] Flow ${flowData.flowId} requires user context due to rule: ${condition.propertyName}`);
                   return true;
                 }
               }
@@ -11650,20 +11470,17 @@ var DAP = (function (exports) {
      * Start a new flow
      */
     async startFlow(flowData) {
-      console.log(`[DAP] \u{1F680} Starting flow: ${flowData.flowId}`);
-      const existingState = this._states.get(flowData.flowId);
-      if (existingState && existingState.flowInProgress) {
-        console.log(`[DAP] \u{1F504} Flow ${flowData.flowId} already in progress - skipping start`);
-        return;
-      }
+      console.debug(`[DAP] \u{1F680} Starting flow: ${flowData.flowId}`);
       if (!this.validateFlowFrequency(flowData)) {
-        console.log(`[DAP] \u{1F6D1} Flow ${flowData.flowId} blocked by frequency validation`);
+        console.debug(`[DAP] \u{1F6D1} Flow ${flowData.flowId} blocked by frequency validation`);
+        this._onFlowEnd?.(flowData.flowId, "blocked");
         return;
       }
       this.analyzeTriggerUsage(flowData);
       this.analyzeFlowPageContext(flowData);
       if (this.flowRequiresUserContext(flowData) && !userContextService.hasRealUser()) {
         console.warn(`[DAP] Flow ${flowData.flowId} requires user context but none available - flow execution blocked`);
+        this._onFlowEnd?.(flowData.flowId, "blocked");
         return;
       }
       const ruleSteps = flowData.steps.filter(
@@ -11673,78 +11490,54 @@ var DAP = (function (exports) {
       if (ruleSteps.length > 0) {
         this.analyzeRuleStepsPageContext(ruleSteps);
       }
+      if (this._state.flowInProgress) {
+        const savedCallback = this._onFlowEnd;
+        this._onFlowEnd = null;
+        this.abortFlow();
+        this._onFlowEnd = savedCallback;
+      }
       resetFlowTracking(flowData.flowId);
-      const flowState = {
+      this._state = {
         activeFlowId: flowData.flowId,
         flowInProgress: true,
         activeStep: 0,
         activeStepTriggered: false,
         executionState: "ACTIVE",
-        executionMode: flowData.execution?.mode || "Linear",
-        triggeredSteps: /* @__PURE__ */ new Set()
+        executionMode: flowData.execution?.mode?.toLowerCase() === "anyorder" ? "AnyOrder" : "Linear",
+        triggeredSteps: /* @__PURE__ */ new Set(),
+        runCounted: false,
+        anyOrderStepInProgress: false,
+        inProgressSteps: /* @__PURE__ */ new Set()
       };
-      this._states.set(flowData.flowId, flowState);
-      this._flows.set(flowData.flowId, flowData);
-      this._primaryFlowId = flowData.flowId;
-      console.log(`[DAP] Flow ${flowData.flowId} started with execution mode: ${flowState.executionMode}`);
-      this.executeStep(flowData.flowId);
+      this._currentFlow = flowData;
+      this.executeStep();
     }
     /**
-     * Abort current or specified flow
+     * Abort current flow
+     * Enhanced with CRITICAL FIXES cleanup
      */
-    abortFlow(flowId) {
-      const id = flowId || this._primaryFlowId;
-      if (!id) {
-        console.debug(`[DAP] No active flow to abort`);
-        return;
+    abortFlow() {
+      if (!this._state.flowInProgress) return;
+      console.debug(`[DAP] Aborting flow: ${this._state.activeFlowId}`);
+      this.cleanupCurrentStep();
+      this.cleanupAllTimers();
+      if (this._state.activeFlowId) {
+        triggerManager.resetOnceTriggersForFlow(this._state.activeFlowId);
       }
-      const state = this._states.get(id);
-      const flow = this._flows.get(id);
-      if (!state || !flow || !state.flowInProgress) {
-        console.debug(`[DAP] Flow ${id} is not in progress`);
-        return;
-      }
-      console.debug(`[DAP] Aborting flow: ${id}`);
-      triggerManager.resetOnceTriggersForFlow(id);
-      this.cleanupCurrentStep(id);
-      state.flowInProgress = false;
-      state.executionState = "TERMINATED";
-      if (id === this._primaryFlowId) {
-        this._primaryFlowId = Array.from(this._states.entries()).filter(([_, s]) => s.flowInProgress).map(([fid, _]) => fid)[0] || null;
-      }
-    }
-    /**
-     * Helper to cleanup a specific flow's current step
-     */
-    cleanupFlowCurrentStep(flowId) {
-      const flow = this._flows.get(flowId);
-      const state = this._states.get(flowId);
-      if (!flow || !state) return;
-      if (state.activeStep < flow.steps.length) {
-        const step = flow.steps[state.activeStep];
-        console.debug(`[DAP] Cleaning up step ${step.stepId} for flow ${flowId}`);
-        if (flowId === this._primaryFlowId) {
-          this.cleanupCurrentStep();
-        } else {
-          triggerManager.unregisterAllTriggersForFlow(flowId);
-          for (const [stepId, timerId] of this._ruleEvaluationTimers) {
-            if (flow.steps.some((s) => s.stepId === stepId)) {
-              clearTimeout(timerId);
-              this._ruleEvaluationTimers.delete(stepId);
-            }
-          }
-          for (const [stepId, timerId] of this._inputStabilityTimers) {
-            if (flow.steps.some((s) => s.stepId === stepId)) {
-              clearTimeout(timerId);
-              this._inputStabilityTimers.delete(stepId);
-            }
-          }
-          flow.steps.forEach((step2) => {
-            this._lastInputValues.delete(step2.stepId);
-            this._inputStabilityChecks.delete(step2.stepId);
-          });
-        }
-      }
+      this._pendingAnyOrderSteps = [];
+      this._state = {
+        activeFlowId: null,
+        flowInProgress: false,
+        activeStep: 0,
+        activeStepTriggered: false,
+        executionState: "TERMINATED",
+        executionMode: "Linear",
+        triggeredSteps: /* @__PURE__ */ new Set(),
+        anyOrderStepInProgress: false,
+        inProgressSteps: /* @__PURE__ */ new Set()
+      };
+      this._currentFlow = null;
+      this._completedMandatorySteps.clear();
     }
     /**
      * CRITICAL FIX 2 & 3: Clean up all timers and tracking state
@@ -11754,10 +11547,6 @@ var DAP = (function (exports) {
         clearTimeout(timerId);
       }
       this._ruleEvaluationTimers.clear();
-      for (const [stepId, timerId] of this._inputStabilityTimers) {
-        clearTimeout(timerId);
-      }
-      this._inputStabilityTimers.clear();
       this._lastInputValues.clear();
       this._inputStabilityChecks.clear();
       console.debug(`[DAP] All debounce and input stability timers cleaned up`);
@@ -11765,94 +11554,92 @@ var DAP = (function (exports) {
     /**
      * Execute current step in the flow with enhanced trigger support
      */
-    executeStep(flowId) {
-      const id = flowId || this._primaryFlowId;
-      if (!id) return;
-      const state = this._getFlowState(id);
-      const flow = this._flows.get(id);
-      if (!flow || !state.flowInProgress) return;
-      console.debug(`[DAP] executeStep for flow: ${id}, mode: ${state.executionMode}`);
-      if (state.executionMode === "Linear") {
-        this.executeLinearStep(id);
-      } else if (state.executionMode === "AnyOrder") {
-        this.executeAnyOrderSteps(id);
+    executeStep() {
+      if (!this._currentFlow || !this._state.flowInProgress) return;
+      if (this._state.executionMode === "Linear") {
+        this.executeLinearStep();
+      } else if (this._state.executionMode === "AnyOrder") {
+        this.executeAnyOrderSteps();
       }
     }
     /**
      * Execute steps in linear order (traditional flow)
      * Enhanced with Linear Execution Gate enforcement
      */
-    executeLinearStep(flowId) {
-      const state = this._getFlowState(flowId);
-      const flow = this._flows.get(flowId);
-      if (!flow) return;
-      if (state.activeStep >= flow.steps.length) {
-        console.log(`[DAP] Flow ${flowId} sequence completed`);
-        this.completeFlow(flowId);
+    executeLinearStep() {
+      if (!this._currentFlow) return;
+      const step = this._currentFlow.steps[this._state.activeStep];
+      if (!step) {
+        console.debug(`[DAP] Flow completed`);
+        this.completeFlow();
         return;
       }
-      const step = flow.steps[state.activeStep];
-      this.cleanupPreviousStepTriggers(flowId);
-      console.debug(`[DAP] Linear Execution Gate: Enforcing step-by-step execution for step ${step.stepId} (index ${state.activeStep}) for flow ${flowId}`);
-      this.executeStepWithTrigger(step, state.activeStep, flowId);
+      console.debug(`[DAP] Linear Execution Gate: Enforcing step-by-step execution for step ${step.stepId} (${this._state.activeStep})`);
+      this.cleanupPreviousStepTriggers();
+      this.executeStepWithTrigger(step);
     }
     /**
      * Execute steps in any order (all steps listen simultaneously)
      */
-    executeAnyOrderSteps(flowId) {
-      const state = this._getFlowState(flowId);
-      const flow = this._flows.get(flowId);
-      if (!flow) return;
-      console.log(`[DAP] Executing AnyOrder flow ${flowId} - all step triggers active`);
-      flow.steps.forEach((step, index) => {
-        if (!state.triggeredSteps.has(index)) {
-          this.setupStepTrigger(step, index, flowId);
+    executeAnyOrderSteps() {
+      if (!this._currentFlow) return;
+      for (let i = 0; i < this._currentFlow.steps.length; i++) {
+        if (!this._state.triggeredSteps.has(i) && !this._state.inProgressSteps.has(i)) {
+          const step = this._currentFlow.steps[i];
+          this.setupStepTrigger(step, i);
         }
-      });
+      }
     }
     /**
      * Execute a step with enhanced trigger support
      */
-    executeStepWithTrigger(step, stepIndex, flowId) {
-      const id = flowId || this._primaryFlowId;
-      if (!id) return;
-      const state = this._getFlowState(id);
-      const flow = this._flows.get(id);
-      if (!flow) return;
-      console.log(`[DAP] ========== EXECUTING STEP ${step.stepId} FOR FLOW ${id} ==========`);
+    executeStepWithTrigger(step, stepIndex) {
+      console.debug(`[DAP] ========== EXECUTING STEP ${step.stepId} ==========`);
       const trigger = triggerManager.resolveTrigger(step);
       if (!trigger) {
-        console.log(`[DAP] Step ${step.stepId}: NO TRIGGER - executing immediately`);
-        this.executeStepContent(step, id);
-        this.postStepTransition(step, id);
+        console.debug(`[DAP] Step ${step.stepId}: NO TRIGGER - executing immediately`);
+        if (!this._state.runCounted && this._currentFlow) {
+          this.incrementFlowRunCount(this._currentFlow);
+          this._state.runCounted = true;
+        }
+        this.executeStepContent(step);
+        this.postStepTransition(step);
         return;
       }
-      console.log(`[DAP] Step ${step.stepId}: TRIGGER RESOLVED - setting up listeners`);
-      const actualStepIndex = stepIndex !== void 0 ? stepIndex : state.activeStep;
-      const isCurrentActiveStep = actualStepIndex === state.activeStep;
+      console.debug(`[DAP] Step ${step.stepId}: TRIGGER RESOLVED - setting up listeners`);
+      const actualStepIndex = stepIndex !== void 0 ? stepIndex : this._state.activeStep;
+      const isCurrentActiveStep = actualStepIndex === this._state.activeStep;
       const flowContext = {
-        mode: state.executionMode,
+        mode: this._state.executionMode,
         currentStepActive: isCurrentActiveStep
       };
+      if (!this.isStepContextActive(step)) {
+        const pageSelector = this.resolveStepPageSelector(step);
+        console.debug(
+          `[DAP] Linear: Step ${step.stepId} deferred \u2014 page selector "${pageSelector}" not found in current DOM`
+        );
+        this.deferStepUntilSelectorPresent(
+          step,
+          actualStepIndex,
+          pageSelector,
+          () => this.executeStepWithTrigger(step, actualStepIndex)
+        );
+        return;
+      }
       if (!step.uxExperience && step.conditionRuleBlocks && step.conditionRuleBlocks.length > 0 && step.userInputSelector) {
         this.setupInputSelectorMutationObserver(step);
         this.setupBlurEventHandler(step);
       }
-      triggerManager.registerTriggerListeners(step.stepId, trigger, async (context) => {
-        const userWantsDap = await showDapExperiencePrompt();
-        if (!userWantsDap) {
-          console.log(`[DAP] User declined DAP experience - ignoring trigger for step ${step.stepId}`);
-          return;
-        }
-        const currentState = this._getFlowState(id);
-        if (currentState.executionMode === "Linear") {
-          const currentStepIndex = currentState.activeStep;
-          if (actualStepIndex !== currentStepIndex) {
-            console.debug(`[DAP] Linear Execution Gate: Rejecting trigger for flow ${id} non-current step ${step.stepId} (index ${actualStepIndex}, current ${currentStepIndex})`);
+      triggerManager.registerTriggerListeners(step.stepId, trigger, (context) => {
+        if (this._state.executionMode === "Linear") {
+          const currentStepIndex = this._state.activeStep;
+          const actualStepIndex2 = stepIndex !== void 0 ? stepIndex : currentStepIndex;
+          if (actualStepIndex2 !== currentStepIndex) {
+            console.debug(`[DAP] Linear Execution Gate: Rejecting trigger for non-current step ${step.stepId} (index ${actualStepIndex2}, current ${currentStepIndex})`);
             return;
           }
-          if (step.uxExperience && currentState.activeStepTriggered) {
-            console.debug(`[DAP] Linear Execution Gate: UX step ${step.stepId} already triggered for flow ${id}, ignoring duplicate trigger`);
+          if (step.uxExperience && this._state.activeStepTriggered) {
+            console.debug(`[DAP] Linear Execution Gate: UX step ${step.stepId} already triggered, ignoring duplicate trigger`);
             return;
           }
           if (!step.uxExperience && step.conditionRuleBlocks && step.conditionRuleBlocks.length > 0) {
@@ -11863,118 +11650,276 @@ var DAP = (function (exports) {
             }
             console.debug(`[DAP] Rule-based step ${step.stepId} re-trigger allowed with new input: "${context.userInput}"`);
           } else {
-            currentState.activeStepTriggered = true;
+            this._state.activeStepTriggered = true;
           }
         }
-        if (currentState.executionMode === "AnyOrder") {
-          currentState.triggeredSteps.add(actualStepIndex);
+        console.debug(`[DAP] TRIGGER ACTIVATED for step ${step.stepId}`);
+        if (!this._state.runCounted && this._currentFlow) {
+          this.incrementFlowRunCount(this._currentFlow);
+          this._state.runCounted = true;
         }
-        console.log(`[DAP] TRIGGER ACTIVATED for step ${step.stepId} in flow ${id}`);
-        this.executeStepContent(step, id);
+        this.executeStepContent(step);
         if (!step.uxExperience && step.conditionRuleBlocks && step.conditionRuleBlocks.length > 0) {
-          console.log(`[DAP] Step ${step.stepId} is rule-based - applying smart evaluation logic`);
+          console.debug(`[DAP] Step ${step.stepId} is rule-based - applying smart evaluation logic`);
           if (step.userInputSelector) {
-            const inputElements = resolveSelectorAll2(step.userInputSelector);
-            if (inputElements.length === 0) {
+            const inputEl = resolveSelectorWithPriority(step.userInputSelector);
+            if (!inputEl) {
               console.error(`[DAP] \u{1F6A8} CRITICAL: Rule-based step ${step.stepId} input selector not found: ${step.userInputSelector}`);
               console.error(`[DAP] This indicates a cross-page navigation issue. Skipping rule evaluation.`);
-              this.advanceToNextStep(id);
+              this.advanceToNextStep();
               return;
             }
           }
-          const inputElement = step.userInputSelector ? resolveSelector(step.userInputSelector) : null;
+          const inputElement = step.userInputSelector ? resolveSelectorWithPriority(step.userInputSelector) : null;
           const inputType = inputElement ? this.getInputElementType(inputElement) : "unknown";
+          console.debug(`[DAP] \u{1F50D} DETECTED INPUT TYPE: "${inputType}" for step ${step.stepId}`);
           if (["text", "email", "password", "textarea", "number", "search", "url", "tel"].includes(inputType)) {
-            console.log(`[DAP] \u{1F4DD} Text-based input detected - rules will evaluate ONLY on blur/focus-out events`);
+            console.debug(`[DAP] \u{1F4DD} Text-based input detected - rules will evaluate ONLY on blur/focus-out events`);
+            console.debug(`[DAP] \u{1F3AF} Input/change events are for trigger activation only`);
           } else {
-            console.log(`[DAP] \u{1F504} Non-text input triggered - evaluating rules immediately`);
-            this.evaluateStepRulesWithValue(step, context.userInput || "", "change", id);
+            console.debug(`[DAP] \u{1F3AF} Non-text input detected (${inputType}) - rules evaluate on change events`);
+            console.debug(`[DAP] \u{1F4CB} Input type supports immediate evaluation after user interaction`);
+            console.debug(`[DAP] \u{1F504} Non-text input triggered - evaluating rules immediately`);
+            this.evaluateStepRulesWithValue(step, context.userInput || "", "change");
             return;
           }
+          console.debug(`[DAP] \u26A0\uFE0F Text input: Waiting for blur event for rule evaluation`);
         } else {
-          this.postStepTransition(step, id);
+          this.postStepTransition(step);
         }
-      }, flowContext);
+      }, flowContext, step.stepType);
     }
     /**
      * Set up trigger for a specific step (used in AnyOrder mode)
      */
-    setupStepTrigger(step, stepIndex, flowId) {
-      const id = flowId || this._primaryFlowId;
-      if (!id) return;
-      const state = this._getFlowState(id);
+    setupStepTrigger(step, stepIndex) {
+      if (this._state.triggeredSteps.has(stepIndex)) {
+        console.debug(`[DAP] setupStepTrigger: Step ${step.stepId} already completed \u2014 skipping`);
+        return;
+      }
+      if (this._state.inProgressSteps.has(stepIndex)) {
+        console.debug(`[DAP] setupStepTrigger: Step ${step.stepId} is already in-progress \u2014 skipping`);
+        return;
+      }
       const trigger = triggerManager.resolveTrigger(step);
       if (!trigger) {
         if (step.stepType === "Optional") {
-          state.triggeredSteps.add(stepIndex);
+          this._state.triggeredSteps.add(stepIndex);
         }
         return;
       }
+      if (!this.isStepContextActive(step)) {
+        const pageSelector = this.resolveStepPageSelector(step);
+        console.debug(
+          `[DAP] AnyOrder: Step ${step.stepId} deferred \u2014 page selector "${pageSelector}" not found in current DOM`
+        );
+        this.deferStepUntilSelectorPresent(
+          step,
+          stepIndex,
+          pageSelector,
+          () => this.setupStepTrigger(step, stepIndex)
+        );
+        return;
+      }
+      console.debug(
+        `[DAP] AnyOrder: Step ${step.stepId} page context active \u2014 registering trigger`
+      );
+      const isRuleBasedStep = !step.uxExperience && step.conditionRuleBlocks != null && step.conditionRuleBlocks.length > 0;
+      if (isRuleBasedStep) {
+        if (step.userInputSelector) {
+          this.setupInputSelectorMutationObserver(step);
+        }
+        this.setupBlurEventHandler(step);
+      }
       const flowContext = {
-        mode: state.executionMode,
+        mode: this._state.executionMode,
         currentStepActive: true
+        // In AnyOrder mode, all steps are considered "active"
       };
-      triggerManager.registerTriggerListeners(step.stepId, trigger, async (context) => {
-        const userWantsDap = await showDapExperiencePrompt();
-        if (!userWantsDap) {
-          console.log(`[DAP] User declined DAP experience - ignoring trigger for step ${step.stepId}`);
+      triggerManager.registerTriggerListeners(step.stepId, trigger, (context) => {
+        if (isRuleBasedStep) {
+          if (!this._state.runCounted && this._currentFlow) {
+            this.incrementFlowRunCount(this._currentFlow);
+            this._state.runCounted = true;
+          }
+          const inputEl = step.userInputSelector ? resolveSelectorWithPriority(step.userInputSelector) : null;
+          const inputType = inputEl ? this.getInputElementType(inputEl) : "unknown";
+          console.debug(`[DAP] AnyOrder rule step ${step.stepId}: trigger fired, input type = "${inputType}"`);
+          if (["text", "email", "password", "textarea", "number", "search", "url", "tel"].includes(inputType)) {
+            console.debug(`[DAP] AnyOrder rule step ${step.stepId}: text input \u2014 waiting for blur to evaluate rules`);
+          } else {
+            console.debug(`[DAP] AnyOrder rule step ${step.stepId}: non-text input \u2014 evaluating rules on trigger`);
+            this.evaluateStepRulesWithValue(step, context.userInput || "", "change");
+          }
           return;
         }
-        const currentState = this._getFlowState(id);
-        currentState.triggeredSteps.add(stepIndex);
-        this.executeStepContent(step, id);
-        this.postStepTransition(step, id);
-        this.checkFlowCompletion(id);
-      }, flowContext);
+        if (this._state.anyOrderStepInProgress) {
+          const isOneShotTrigger = trigger.once || trigger.conditions.some((c) => c.kind === "Time" || c.kind === "Lifecycle");
+          if (isOneShotTrigger) {
+            this._pendingAnyOrderSteps.push({ step, stepIndex });
+            console.debug(`[DAP] AnyOrder: queued one-shot step ${step.stepId} for replay after current step completes`);
+          } else {
+            console.debug(`[DAP] AnyOrder: trigger for step ${step.stepId} dropped \u2014 retriggerable on next interaction`);
+          }
+          return;
+        }
+        this._state.inProgressSteps.add(stepIndex);
+        if (!this._state.runCounted && this._currentFlow) {
+          this.incrementFlowRunCount(this._currentFlow);
+          this._state.runCounted = true;
+        }
+        this._state.anyOrderStepInProgress = true;
+        this.executeStepContent(step);
+        this.postStepTransition(step);
+      }, flowContext, step.stepType);
+    }
+    /**
+     * Resolve the page-identity selector for a step — the single, most specific
+     * token that uniquely identifies which SPA screen the step belongs to.
+     *
+     * Source priority:
+     *   1. uxExperience.elementSelector  (the experience anchor element)
+     *   2. trigger.conditions[].selector (the interaction trigger element)
+     *
+     * ⚠️  IMPORTANT — first token only
+     * ────────────────────────────────
+     * The server sends compound, pipe-separated selector strings that contain
+     * both specific and generic fallback tokens, e.g.:
+     *
+     *   "xpath=//input[@placeholder='Search directory...']   ← specific (Screen A only)
+     *    |xpath=//*[@id='root']//input                       ← generic  (matches ANY page!)
+     *    |css=#root > div.dashboard-layout > ... > input     ← specific (Screen A only)
+     *    |xpath=//*[@id='root']/div[1]/main[1]/..."          ← specific (Screen A only)
+     *
+     * If we pass the full compound string to the priority resolver it will try
+     * all fallbacks, and the generic token "xpath=//*[@id='root']//input" will
+     * match on EVERY page that contains an input — causing isStepContextActive()
+     * to return true even when the user is on the wrong SPA screen.
+     *
+     * Using ONLY the first token (always the most specific: placeholder-based
+     * XPath, unique CSS path, or data-attribute) gives us an accurate "am I on
+     * Screen A?" signal without any false positives.
+     *
+     * Returns null for pure Lifecycle/Time steps that carry no DOM anchor at all.
+     */
+    resolveStepPageSelector(step) {
+      const raw = step.uxExperience?.elementSelector?.trim() && step.uxExperience.elementSelector.trim() !== "NA" ? step.uxExperience.elementSelector.trim() : step.trigger?.conditions?.find(
+        (c) => c.selector && c.selector.trim() !== "" && c.selector.trim() !== "NA"
+      )?.selector?.trim() ?? null;
+      if (!raw) return null;
+      const firstToken = raw.split("|")[0].trim();
+      return firstToken.length > 0 ? firstToken : null;
+    }
+    /**
+     * Determines whether the correct SPA screen is currently visible for this step.
+     *
+     * SPA frameworks (React Router, Angular Router, Vue Router, …) swap content
+     * in-place without a full-page reload.  A step that belongs to Screen B must
+     * not activate while the user is still on Screen A.
+     *
+     * This method answers that question by verifying that the step's most
+     * specific anchor element (the FIRST token from resolveStepPageSelector) is
+     * actually present in the live DOM right now.
+     *
+     * Only the first, most specific selector token is checked — see
+     * resolveStepPageSelector for why generic fallback tokens must be excluded.
+     *
+     * @returns true  — element found, or the step has no DOM anchor at all
+     *                  (pure Lifecycle / Time triggers are always considered active).
+     * @returns false — element absent; the user is on the wrong SPA screen and
+     *                  trigger registration should be deferred.
+     */
+    isStepContextActive(step) {
+      const pageSelector = this.resolveStepPageSelector(step);
+      if (!pageSelector) return true;
+      const el = resolveSelectorWithCache(step.stepId, pageSelector);
+      if (el) {
+        console.debug(`[DAP] Page context active for step "${step.stepId}" \u2014 element found via "${pageSelector}"`);
+      }
+      return el !== null;
+    }
+    /**
+     * ✅ Fix #11 — Defer trigger registration until the step's page identity selector appears in
+     * the DOM. Uses two complementary detection signals:
+     *   1. MutationObserver  — covers same-URL SPA tab/panel swaps, MFE slot changes
+     *   2. pageContextService.subscribe()  — covers URL-based SPA navigation and setScreen() calls
+     */
+    deferStepUntilSelectorPresent(step, stepIndex, pageSelector, onResolved) {
+      let observer = null;
+      let pageUnsub = null;
+      let settled = false;
+      const cleanup = () => {
+        observer?.disconnect();
+        observer = null;
+        pageUnsub?.();
+        pageUnsub = null;
+      };
+      const tryRegister = () => {
+        if (settled) return;
+        if (!this._state.flowInProgress || !this._currentFlow || this._state.triggeredSteps.has(stepIndex) || this._state.inProgressSteps.has(stepIndex)) {
+          settled = true;
+          cleanup();
+          return;
+        }
+        const el = resolveSelectorWithCache(step.stepId, pageSelector);
+        if (!el) return;
+        settled = true;
+        cleanup();
+        console.debug(
+          `[DAP] Deferred step ${step.stepId} \u2014 selector "${pageSelector}" now present, registering trigger`
+        );
+        if (onResolved) {
+          onResolved();
+        } else {
+          this.setupStepTrigger(step, stepIndex);
+        }
+      };
+      observer = new MutationObserver(() => tryRegister());
+      observer.observe(document.body, { childList: true, subtree: true });
+      pageUnsub = pageContextService.subscribe(() => {
+        setTimeout(() => tryRegister(), 0);
+      });
+      const existingCleanup = this._stepTriggerListeners.get(`${step.stepId}_defer`);
+      if (existingCleanup) existingCleanup();
+      this._stepTriggerListeners.set(`${step.stepId}_defer`, () => {
+        settled = true;
+        cleanup();
+      });
     }
     /**
      * Execute the actual step content (UX experience)
      */
-    executeStepContent(step, flowId) {
-      const id = flowId || this._primaryFlowId;
-      if (!id) return;
-      const state = this._getFlowState(id);
-      if (state.activeFlowId) {
-        trackStepView(state.activeFlowId, step.stepId);
+    executeStepContent(step) {
+      if (this._state.activeFlowId && !step.uxExperience) {
+        trackStepView(this._state.activeFlowId, step.stepId);
       }
       if (step.uxExperience) {
-        this.triggerUXExperience(step, id);
+        this.triggerUXExperience(step);
       } else {
-        console.log(`[DAP] Step ${step.stepId} is rule-based, waiting for conditions`);
+        console.debug(`[DAP] Step ${step.stepId} is rule-based, waiting for conditions`);
       }
     }
     /**
      * Handle post-step transition (rules evaluation and flow control)
      */
-    postStepTransition(step, flowId) {
-      const id = flowId || this._primaryFlowId;
-      if (!id) return;
-      const state = this._getFlowState(id);
+    postStepTransition(step) {
       if (step.conditionRuleBlocks && step.conditionRuleBlocks.length > 0 && !step.uxExperience) {
-        console.log(`[DAP] Step ${step.stepId} has rules but no UX - waiting for input trigger`);
+        console.debug(`[DAP] Step ${step.stepId} has rules but no UX - waiting for input trigger`);
         return;
       }
       if (step.conditionRuleBlocks && step.conditionRuleBlocks.length > 0 && step.uxExperience) {
-        this.evaluateStepRules(step, id);
+        const inputValue = this.getCurrentInputValue(step);
+        this.evaluateStepRulesWithValue(step, inputValue, "change");
         return;
       }
       if (step.uxExperience && (!step.conditionRuleBlocks || step.conditionRuleBlocks.length === 0)) {
         return;
       }
       if (!step.uxExperience && (!step.conditionRuleBlocks || step.conditionRuleBlocks.length === 0)) {
-        if (state.executionMode === "Linear") {
-          this.advanceToNextStep(id);
+        if (this._state.executionMode === "Linear") {
+          this.advanceToNextStep();
         }
       }
-    }
-    /**
-     * 🚨 DISABLED: Debounced rule evaluation - Rules now evaluate ONLY on blur events
-     * This method is kept for potential future use but should not be called
-     */
-    setupDebouncedRuleEvaluation(step, inputValue) {
-      console.warn(`[DAP] \u26A0\uFE0F setupDebouncedRuleEvaluation called but DISABLED - rules evaluate ONLY on blur events`);
-      console.warn(`[DAP] \u{1F3AF} Input/change events are for trigger activation only, rule evaluation happens on blur/focus-out`);
-      return;
     }
     /**
      * 🚨 SMART RULE EVALUATION: Determine if rules should evaluate based on input type and trigger source
@@ -11985,13 +11930,13 @@ var DAP = (function (exports) {
         console.debug(`[DAP] No input selector, allowing rule evaluation`);
         return true;
       }
-      const inputElement = resolveSelector(step.userInputSelector);
+      const inputElement = resolveSelectorWithPriority(step.userInputSelector);
       if (!inputElement) {
         console.warn(`[DAP] Input element not found for rule evaluation check: ${step.userInputSelector}`);
         return true;
       }
       const inputType = this.getInputElementType(inputElement);
-      console.log(`[DAP] \u{1F50D} SMART EVALUATION CHECK: Input type "${inputType}" with trigger "${triggerSource}"`);
+      console.debug(`[DAP] \u{1F50D} SMART EVALUATION CHECK: Input type "${inputType}" with trigger "${triggerSource}"`);
       switch (inputType) {
         case "text":
         case "email":
@@ -12001,27 +11946,27 @@ var DAP = (function (exports) {
         case "search":
         case "url":
         case "tel":
-          console.log(`[DAP] \u{1F4DD} Text-based input: Rules evaluate ONLY on blur/focus-out`);
-          return triggerSource === "blur";
+          console.debug(`[DAP] \u{1F4DD} Text-based input: Rules evaluate on blur/focus-out OR deliberate click`);
+          return triggerSource === "blur" || triggerSource === "click" || triggerSource === "manual";
         case "select":
         case "select-one":
         case "select-multiple":
-          console.log(`[DAP] \u{1F4CB} Dropdown/Select input: Rules evaluate on change/blur events`);
+          console.debug(`[DAP] \u{1F4CB} Dropdown/Select input: Rules evaluate on change/blur events`);
           return triggerSource === "change" || triggerSource === "blur";
         case "checkbox":
         case "radio":
-          console.log(`[DAP] \u2611\uFE0F Checkbox/Radio input: Rules evaluate on change events`);
+          console.debug(`[DAP] \u2611\uFE0F Checkbox/Radio input: Rules evaluate on change events`);
           return triggerSource === "change" || triggerSource === "blur";
         case "date":
         case "time":
         case "datetime-local":
         case "month":
         case "week":
-          console.log(`[DAP] \u{1F4C5} Date/Time input: Rules evaluate on change/blur events`);
+          console.debug(`[DAP] \u{1F4C5} Date/Time input: Rules evaluate on change/blur events`);
           return triggerSource === "change" || triggerSource === "blur";
         case "range":
         case "color":
-          console.log(`[DAP] \u{1F3A8} Range/Color input: Rules evaluate on change events`);
+          console.debug(`[DAP] \u{1F3A8} Range/Color input: Rules evaluate on change events`);
           return triggerSource === "change" || triggerSource === "blur";
         default:
           console.warn(`[DAP] \u2753 Unknown input type "${inputType}": Defaulting to blur evaluation`);
@@ -12060,10 +12005,6 @@ var DAP = (function (exports) {
       }
       if (inputValue.trim().length === 0) {
         console.debug(`[DAP] \u274C Input stability: Empty or whitespace-only value - BLOCKING rule evaluation`);
-        return false;
-      }
-      if (inputValue.length === 1) {
-        console.debug(`[DAP] \u274C Input stability: Single character "${inputValue}" is not meaningful for rule evaluation - BLOCKING`);
         return false;
       }
       const lastCheck = this._inputStabilityChecks.get(stepId);
@@ -12113,9 +12054,9 @@ var DAP = (function (exports) {
           }
         }
         if (shouldReRegister) {
-          const inputElements = resolveSelectorAll2(step.userInputSelector);
-          if (inputElements.length > 0) {
-            console.log(`[DAP] \u2705 Input selector now available for step ${step.stepId}, re-registering triggers`);
+          const foundEl = resolveSelectorWithPriority(step.userInputSelector);
+          if (foundEl) {
+            console.debug(`[DAP] \u2705 Input selector now available for step ${step.stepId}, re-registering triggers`);
             setTimeout(() => {
               this.reRegisterStepTriggers(step);
             }, 100);
@@ -12155,43 +12096,50 @@ var DAP = (function (exports) {
      */
     setupBlurEventHandler(step) {
       if (!step.userInputSelector) return;
-      console.log(`[DAP] \u{1F3AF} Setting up PRIMARY blur event handler for rule-based step ${step.stepId}`);
-      console.log(`[DAP] \u{1F4CB} Rules will evaluate ONLY on blur/focus-out events, not during typing`);
-      this.waitForInputElement(step.userInputSelector, (inputElement) => {
+      console.debug(`[DAP] \u{1F3AF} Setting up PRIMARY blur event handler for rule-based step ${step.stepId}`);
+      console.debug(`[DAP] \u{1F4CB} Rules will evaluate ONLY on blur/focus-out events, not during typing`);
+      const cancelWait = this.waitForInputElement(step.userInputSelector, (inputElement) => {
         console.debug(`[DAP] \u2705 Input element found for blur handler, setting up listener`);
         const blurHandler = () => {
-          console.log(`[DAP]  PRIMARY BLUR EVENT - User finished input and moved focus away from step ${step.stepId}`);
+          console.debug(`[DAP] \uFFFD PRIMARY BLUR EVENT - User finished input and moved focus away from step ${step.stepId}`);
           const currentValue = inputElement.value;
-          console.log(`[DAP] \u{1F3AF} BLUR EVALUATION: Input value for rule evaluation: "${currentValue}"`);
-          console.log(`[DAP] \u{1F50D} BLUR EVENT STATE CHECK:`);
-          console.log(`[DAP] - Current flow exists: ${!!this._currentFlow}`);
-          console.log(`[DAP] - Active step index: ${this._state.activeStep}`);
-          console.log(`[DAP] - Total steps: ${this._currentFlow?.steps?.length || 0}`);
-          console.log(`[DAP] - Step being checked: ${step.stepId}`);
+          console.debug(`[DAP] \u{1F3AF} BLUR EVALUATION: Input value for rule evaluation: "${currentValue}"`);
+          console.debug(`[DAP] \u{1F50D} BLUR EVENT STATE CHECK:`);
+          console.debug(`[DAP] - Current flow exists: ${!!this._currentFlow}`);
+          console.debug(`[DAP] - Active step index: ${this._state.activeStep}`);
+          console.debug(`[DAP] - Total steps: ${this._currentFlow?.steps?.length || 0}`);
+          console.debug(`[DAP] - Step being checked: ${step.stepId}`);
           if (!this._currentFlow) {
-            console.log(`[DAP] \u274C No active flow, ignoring blur event`);
+            console.debug(`[DAP] \u274C No active flow, ignoring blur event`);
             return;
           }
           const stepExists = this._currentFlow.steps.some((s) => s.stepId === step.stepId);
           if (!stepExists) {
-            console.log(`[DAP] \u274C Step ${step.stepId} not found in current flow, ignoring blur event`);
+            console.debug(`[DAP] \u274C Step ${step.stepId} not found in current flow, ignoring blur event`);
             return;
           }
           const stepIndex = this._currentFlow.steps.findIndex((s) => s.stepId === step.stepId);
           if (stepIndex === -1) {
-            console.log(`[DAP] \u274C Could not find step index for ${step.stepId}, ignoring blur event`);
+            console.debug(`[DAP] \u274C Could not find step index for ${step.stepId}, ignoring blur event`);
             return;
           }
-          const isCurrentOrRecentStep = stepIndex <= this._state.activeStep && this._state.activeStep - stepIndex <= 2;
-          if (!isCurrentOrRecentStep) {
-            console.log(`[DAP] \u274C Step ${step.stepId} is too far behind current step (${stepIndex} vs ${this._state.activeStep}), ignoring blur event`);
-            return;
+          if (this._state.executionMode === "Linear") {
+            const isCurrentOrRecentStep = stepIndex === this._state.activeStep;
+            if (!isCurrentOrRecentStep) {
+              console.debug(`[DAP] \u274C Step ${step.stepId} is no longer the active step (${stepIndex} vs ${this._state.activeStep}), ignoring blur event`);
+              return;
+            }
+          } else {
+            if (this._state.triggeredSteps.has(stepIndex)) {
+              console.debug(`[DAP] \u274C AnyOrder step ${step.stepId} already triggered, ignoring blur event`);
+              return;
+            }
           }
-          console.log(`[DAP] \u2705 Step validation passed - proceeding with rule evaluation`);
+          console.debug(`[DAP] \u2705 Step validation passed - proceeding with rule evaluation`);
           this._currentFlow.steps[stepIndex];
           this.clearRuleEvaluationTimers(step.stepId);
-          console.log(`[DAP] \u{1F3AF} EXECUTING PRIMARY RULE EVALUATION on blur for step ${step.stepId}`);
-          console.log(`[DAP] \u{1F4A1} User has finished typing and moved focus - perfect time for rule evaluation`);
+          console.debug(`[DAP] \u{1F3AF} EXECUTING PRIMARY RULE EVALUATION on blur for step ${step.stepId}`);
+          console.debug(`[DAP] \u{1F4A1} User has finished typing and moved focus - perfect time for rule evaluation`);
           this.evaluateStepRulesWithValue(step, currentValue, "blur");
         };
         inputElement.addEventListener("blur", blurHandler);
@@ -12205,33 +12153,47 @@ var DAP = (function (exports) {
         });
         console.debug(`[DAP] \u2705 Blur event handler registered for step ${step.stepId}`);
       });
+      const existingWaitCancel = this._stepTriggerListeners.get(`${step.stepId}_waitCancel`);
+      if (existingWaitCancel) existingWaitCancel();
+      this._stepTriggerListeners.set(`${step.stepId}_waitCancel`, cancelWait);
     }
     /**
-     * CRITICAL FIX: Wait for input element to be available (handles both CSS and XPath)
+     * CRITICAL FIX: Wait for input element to be available (handles both CSS and XPath).
+     * Returns a cancel function — call it to stop retrying (e.g. when the flow is aborted).
+     * Retries stop automatically after 30 s (300 × 100 ms) to prevent infinite loops (Bug H fix).
      */
     waitForInputElement(selector, callback) {
+      let cancelled = false;
+      let attempts = 0;
+      const MAX_ATTEMPTS = 300;
       const checkElement = () => {
-        const elements = resolveSelectorAll2(selector);
-        if (elements.length > 0) {
+        if (cancelled) return;
+        if (attempts >= MAX_ATTEMPTS) {
+          console.warn(`[DAP] waitForInputElement: gave up waiting for "${selector}" after 30 s`);
+          return;
+        }
+        attempts++;
+        const el = resolveSelectorWithPriority(selector);
+        if (el) {
           console.debug(`[DAP] \u2705 Input element found: ${selector}`);
-          callback(elements[0]);
+          callback(el);
         } else {
           setTimeout(checkElement, 100);
         }
       };
       checkElement();
+      return () => {
+        cancelled = true;
+      };
     }
     /**
      * Get current input value for a step using CSS or XPath selector
      */
     getCurrentInputValue(step) {
       if (!step.userInputSelector) return "";
-      const inputElement = resolveSelector(step.userInputSelector);
+      const inputElement = resolveSelectorWithPriority(step.userInputSelector);
       return inputElement ? inputElement.value : "";
     }
-    /**
-     * Evaluate step rules with a specific input value (enhanced with better error handling)
-     */
     /**
      * Evaluate step rules with a specific input value (enhanced with better error handling)
      * 🚨 CRITICAL: Smart rule evaluation based on input type and interaction pattern
@@ -12240,12 +12202,7 @@ var DAP = (function (exports) {
      * - Checkboxes/Radio: Rules evaluate on change events (immediate after click)
      * Enhanced with CRITICAL FIX 5 & 6: Fallback Logic and Mandatory Step Enforcement
      */
-    evaluateStepRulesWithValue(step, inputValue, triggerSource, flowId) {
-      const id = flowId || this._primaryFlowId;
-      if (!id) return;
-      const state = this._getFlowState(id);
-      const flow = this._flows.get(id);
-      if (!flow) return;
+    evaluateStepRulesWithValue(step, inputValue, triggerSource) {
       const source = triggerSource || "unknown";
       const shouldEvaluateRules = this.shouldEvaluateRulesForTriggerSource(step, source);
       if (!shouldEvaluateRules) {
@@ -12253,63 +12210,79 @@ var DAP = (function (exports) {
         console.warn(`[DAP] \u{1F3AF} Trigger source "${source}" not appropriate for this input type`);
         return;
       }
-      console.log(`[DAP] ========== RULE EVALUATION START: Step ${step.stepId} (${source.toUpperCase()} TRIGGER) ==========`);
-      console.log(`[DAP] \u2705 SMART EVALUATION: Trigger source "${source}" is appropriate for this input type`);
-      console.log(`[DAP] Input value: "${inputValue}"`);
-      console.log(`[DAP] Rule blocks: ${step.conditionRuleBlocks?.length || 0}`);
+      if (source === "blur" && !this.isInputValueStable(step.stepId, inputValue)) {
+        console.debug(`[DAP] \u23F3 Input not yet stable for step ${step.stepId} \u2014 deferring rule evaluation`);
+        return;
+      }
+      console.debug(`[DAP] ========== RULE EVALUATION START: Step ${step.stepId} (${source.toUpperCase()} TRIGGER) ==========`);
+      console.debug(`[DAP] \u2705 SMART EVALUATION: Trigger source "${source}" is appropriate for this input type`);
+      let finalInputValue = inputValue;
+      if ((!finalInputValue || finalInputValue === "") && step.userInputSelector) {
+        const primaryInput = resolveSelectorWithPriority(step.userInputSelector);
+        if (primaryInput) {
+          finalInputValue = primaryInput.value !== void 0 ? primaryInput.value : primaryInput.textContent || "";
+          console.debug(`[DAP] \u{1F4A1} Trigger provided no value, resolved from primary input "${step.userInputSelector}": "${finalInputValue}"`);
+        } else {
+          console.warn(`[DAP] \u26A0\uFE0F Primary input selector not found for rule evaluation: ${step.userInputSelector}`);
+        }
+      }
+      console.debug(`[DAP] Input value for evaluation: "${finalInputValue}"`);
+      console.debug(`[DAP] Rule blocks: ${step.conditionRuleBlocks?.length || 0}`);
       if (!step.conditionRuleBlocks || step.conditionRuleBlocks.length === 0) {
-        console.log(`[DAP] No rule blocks found, advancing to next step`);
-        this.advanceToNextStep(id);
+        console.debug(`[DAP] No rule blocks found, advancing to next step`);
+        this.advanceToNextStep();
         return;
       }
       console.debug(`[DAP] \u{1F4C4} Rule evaluation page context check for step: ${step.stepId}`);
-      let pageContextValid = true;
-      for (const ruleBlock of step.conditionRuleBlocks) {
+      for (let i = 0; i < step.conditionRuleBlocks.length; i++) {
+        const ruleBlock = step.conditionRuleBlocks[i];
         if (ruleBlock.selector) {
-          const elements = resolveSelectorAll2(ruleBlock.selector);
-          if (elements.length === 0) {
-            console.warn(`[DAP] \u26A0\uFE0F Rule block selector not found on current page: ${ruleBlock.selector}`);
-            console.warn(`[DAP] This may indicate a cross-page navigation issue for rule-based step ${step.stepId}`);
-            pageContextValid = false;
+          const rbEl = resolveSelectorWithPriority(ruleBlock.selector);
+          if (!rbEl) {
+            console.warn(`[DAP] \u26A0\uFE0F Rule block ${i} selector not yet in DOM: ${ruleBlock.selector}`);
           }
         }
-      }
-      if (!pageContextValid) {
-        console.warn(`[DAP] \u{1F6A8} Page context validation failed for rule-based step ${step.stepId}`);
-        console.warn(`[DAP] Skipping rule evaluation due to missing selectors - possible cross-page issue`);
-        this.handleRuleEvaluationFailure(step, "page_context_invalid");
-        return;
       }
       try {
         let ruleMatched = false;
         let matchedRuleBlock = null;
         for (const ruleBlock of step.conditionRuleBlocks) {
-          console.log(`[DAP] Evaluating rule block with input: "${inputValue}"`);
-          const ruleResult = evaluateRuleBlock(ruleBlock, inputValue);
-          console.log(`[DAP] Rule block result for "${inputValue}": ${ruleResult}`);
+          console.debug(`[DAP] Evaluating rule block with input: "${finalInputValue}"`);
+          let evaluationValue = finalInputValue;
+          if (ruleBlock.selector) {
+            const element = resolveSelectorWithPriority(ruleBlock.selector);
+            if (element) {
+              evaluationValue = element.value !== void 0 ? element.value : element.textContent || "";
+              console.debug(`[DAP] Rule block uses selector ${ruleBlock.selector}, resolved value: "${evaluationValue}"`);
+            } else {
+              console.warn(`[DAP] Rule block selector ${ruleBlock.selector} not found, falling back to input value: "${finalInputValue}"`);
+            }
+          }
+          const ruleResult = evaluateRuleBlock(ruleBlock, evaluationValue);
+          console.debug(`[DAP] Rule block result for "${evaluationValue}": ${ruleResult}`);
           if (ruleResult) {
-            console.log(`[DAP] \u2705 Rule matched for step ${step.stepId}, handling branching`);
+            console.debug(`[DAP] \u2705 Rule matched for step ${step.stepId}, handling branching`);
             ruleMatched = true;
             matchedRuleBlock = ruleBlock;
             break;
           }
         }
         if (ruleMatched && matchedRuleBlock) {
-          if (step.stepType === "Mandatory" && state.executionMode === "Linear") {
-            console.log(`[DAP] \u2705 MANDATORY STEP COMPLETED: ${step.stepId}`);
+          if (step.stepType === "Mandatory" && this._state.executionMode === "Linear") {
+            console.debug(`[DAP] \u2705 MANDATORY STEP COMPLETED: ${step.stepId}`);
             this.trackMandatoryStepCompletion(step);
           }
-          console.log(`[DAP] \u{1F3AF} Rule matched on ${source} trigger - executing branching logic`);
-          this.handleRuleBranching(matchedRuleBlock);
+          console.debug(`[DAP] \u{1F3AF} Rule matched on ${source} trigger - executing branching logic`);
+          this.handleRuleBranching(matchedRuleBlock, step);
         } else {
-          console.log(`[DAP] \u274C No rules matched for step ${step.stepId} on ${source} trigger`);
-          this.handleNoRuleMatch(step, inputValue);
+          console.debug(`[DAP] \u274C No rules matched for step ${step.stepId} on ${source} trigger`);
+          this.handleNoRuleMatch(step, finalInputValue);
         }
       } catch (error) {
         console.error(`[DAP] Error evaluating rules for step ${step.stepId}:`, error);
         this.handleRuleEvaluationFailure(step, "evaluation_error", error);
       }
-      console.log(`[DAP] ========== RULE EVALUATION END: Step ${step.stepId} (${source.toUpperCase()} TRIGGER) ==========`);
+      console.debug(`[DAP] ========== RULE EVALUATION END: Step ${step.stepId} (${source.toUpperCase()} TRIGGER) ==========`);
     }
     /**
      * CRITICAL FIX 5: Handle rule evaluation failures with proper fallback logic
@@ -12317,7 +12290,7 @@ var DAP = (function (exports) {
      */
     handleRuleEvaluationFailure(step, reason, error) {
       console.warn(`[DAP] \u{1F6A8} FALLBACK LOGIC: Rule evaluation failed for step ${step.stepId}, reason: ${reason}`);
-      console.log(`[DAP] Step type: ${step.stepType || "Not specified"}`);
+      console.debug(`[DAP] Step type: ${step.stepType || "Not specified"}`);
       const shouldBlockOnFailure = step.blockOnRuleFailure === true;
       if (shouldBlockOnFailure) {
         console.warn(`[DAP] \u26A0\uFE0F BLOCKING STEP: ${step.stepId} configured to block on rule failures`);
@@ -12327,8 +12300,12 @@ var DAP = (function (exports) {
         this.clearInputStabilityTimers(step.stepId);
         return;
       } else {
+        if (this._state.executionMode === "AnyOrder") {
+          console.debug(`[DAP] AnyOrder: rule evaluation failure for step ${step.stepId} (${reason}) \u2014 keeping step active for retry`);
+          return;
+        }
         console.warn(`[DAP] \u2705 ADVANCING: Step ${step.stepId} (type: ${step.stepType || "default"}) failed ${reason}, moving to next step`);
-        console.log(`[DAP] \u{1F3AF} This is the default behavior as requested: "move to next step in the current flow"`);
+        console.debug(`[DAP] \u{1F3AF} This is the default behavior as requested: "move to next step in the current flow"`);
         this.advanceToNextStepWithRuleCheck();
       }
     }
@@ -12337,17 +12314,21 @@ var DAP = (function (exports) {
      * Updated to advance by default unless explicitly configured otherwise
      */
     handleNoRuleMatch(step, inputValue) {
-      console.log(`[DAP] \u{1F504} FALLBACK LOGIC: No rule matched for input "${inputValue}" in step ${step.stepId}`);
-      console.log(`[DAP] Step type: ${step.stepType || "Not specified"}`);
+      console.debug(`[DAP] \u{1F504} FALLBACK LOGIC: No rule matched for input "${inputValue}" in step ${step.stepId}`);
+      console.debug(`[DAP] Step type: ${step.stepType || "Not specified"}`);
       const shouldBlockOnNoMatch = step.blockOnNoRuleMatch === true;
       if (shouldBlockOnNoMatch) {
-        console.log(`[DAP] \u26A0\uFE0F BLOCKING STEP: ${step.stepId} configured to block when no rules match, staying on current step`);
+        console.debug(`[DAP] \u26A0\uFE0F BLOCKING STEP: ${step.stepId} configured to block when no rules match, staying on current step`);
         this._state.activeStepTriggered = false;
-        console.log(`[DAP] User must provide input that matches one of the defined rules`);
+        console.debug(`[DAP] User must provide input that matches one of the defined rules`);
         return;
       } else {
-        console.log(`[DAP] \u2705 ADVANCING: Step ${step.stepId} (type: ${step.stepType || "default"}) - moving to next step when no rules match`);
-        console.log(`[DAP] \u{1F3AF} This is the default behavior as requested: "move to next step in the current flow"`);
+        if (this._state.executionMode === "AnyOrder") {
+          console.debug(`[DAP] AnyOrder: no rule matched for step ${step.stepId} with input "${inputValue}" \u2014 step stays active for re-evaluation`);
+          return;
+        }
+        console.debug(`[DAP] \u2705 ADVANCING: Step ${step.stepId} (type: ${step.stepType || "default"}) - moving to next step when no rules match`);
+        console.debug(`[DAP] \u{1F3AF} This is the default behavior as requested: "move to next step in the current flow"`);
         this.advanceToNextStepWithRuleCheck();
       }
     }
@@ -12355,68 +12336,29 @@ var DAP = (function (exports) {
      * CRITICAL FIX 6: Track mandatory step completion for flow validation
      */
     trackMandatoryStepCompletion(step) {
-      console.log(`[DAP] \u{1F4CB} Mandatory step completion tracked: ${step.stepId}`);
-    }
-    /**
-     * Evaluate a single rule block with a specific input value
-     */
-    evaluateRuleBlockWithValue(ruleBlock, inputValue) {
-      return evaluateRuleBlock(ruleBlock, inputValue);
-    }
-    /**
-     * Evaluate condition rule blocks and handle branching
-     */
-    evaluateStepRules(step, flowId) {
-      const id = flowId || this._primaryFlowId;
-      if (!id) return;
-      const state = this._getFlowState(id);
-      const flow = this._flows.get(id);
-      if (!flow) return;
-      console.debug(`[DAP] Evaluating rules for step: ${step.stepId} in flow ${id}`);
-      if (!step.conditionRuleBlocks) return;
-      for (const ruleBlock of step.conditionRuleBlocks) {
-        try {
-          let inputValue = "";
-          if (step.userInputSelector) {
-            const inputElement = resolveSelector(step.userInputSelector);
-            if (inputElement) {
-              inputValue = inputElement.value;
-            }
-          }
-          const ruleMatched = evaluateRuleBlock(ruleBlock, inputValue);
-          if (ruleMatched) {
-            console.debug(`[DAP] Rule matched for step ${step.stepId}, handling branching`);
-            this.handleRuleBranching(ruleBlock);
-            return;
-          }
-        } catch (error) {
-          console.error(`[DAP] Error evaluating rule block:`, error);
-        }
-      }
-      if (state.executionMode === "Linear") {
-        this.advanceToNextStep(id);
-      }
+      this._completedMandatorySteps.add(step.stepId);
+      console.debug(`[DAP] \u{1F4CB} Mandatory step completed: ${step.stepId} (${this._completedMandatorySteps.size} mandatory step(s) done this flow)`);
     }
     /**
      * Handle rule-based branching based on BranchType
      * 🚨 CRITICAL FIX: Proper completion tracking for rule-based branching
      */
-    handleRuleBranching(ruleBlock) {
-      console.log(`[DAP] Handling rule-based branching for block:`, ruleBlock);
+    handleRuleBranching(ruleBlock, step) {
+      console.debug(`[DAP] Handling rule-based branching for block:`, ruleBlock);
       const branchType = ruleBlock.branchType;
       switch (branchType) {
-        case "Flow":
+        case "Flow": {
           const nextFlowId = ruleBlock.nextFlowId;
           if (nextFlowId) {
-            console.log(`[DAP] \u{1F3AF} RULE MATCHED - Branching to new flow: ${nextFlowId}`);
+            console.debug(`[DAP] \u{1F3AF} RULE MATCHED - Branching to new flow: ${nextFlowId}`);
             if (this._currentFlow && this._state.activeStep < this._currentFlow.steps.length) {
               const currentStep = this._currentFlow.steps[this._state.activeStep];
-              console.log(`[DAP] \u2705 STEP COMPLETED: ${currentStep.stepId} (Mandatory step completed via rule branching)`);
+              console.debug(`[DAP] \u2705 STEP COMPLETED: ${currentStep.stepId} (Mandatory step completed via rule branching)`);
               if (this._state.activeFlowId) {
-                console.log(`[DAP] \u{1F4CB} Tracking completion for mandatory rule-based step ${currentStep.stepId}`);
+                console.debug(`[DAP] \u{1F4CB} Tracking completion for mandatory rule-based step ${currentStep.stepId}`);
               }
             }
-            console.log(`[DAP] \u2705 FLOW COMPLETED: ${this._currentFlow?.flowId} (Terminated by rule branching)`);
+            console.debug(`[DAP] \u2705 FLOW COMPLETED: ${this._currentFlow?.flowId} (Terminated by rule branching)`);
             this.markFlowAsCompletedByBranching(this._currentFlow);
             this.terminateCurrentFlowAfterCompletion();
             this.startNewFlow(nextFlowId);
@@ -12425,31 +12367,31 @@ var DAP = (function (exports) {
             this.continueToNextStep();
           }
           break;
-        case "Step":
+        }
+        case "Step": {
           const targetStepId = ruleBlock.stepId;
-          if (targetStepId) {
-            console.log(`[DAP] Jumping to step: ${targetStepId}`);
+          if (this._state.executionMode === "AnyOrder") {
+            console.debug(`[DAP] AnyOrder: rule Step-branch \u2014 marking rule step complete`);
+            if (step) this.onStepComplete(step);
+          } else if (targetStepId) {
+            console.debug(`[DAP] Jumping to step: ${targetStepId}`);
             this.jumpToStep(targetStepId);
           } else {
             console.warn(`[DAP] Step branch type specified but no stepId found`);
             this.continueToNextStep();
           }
           break;
+        }
         case "Continue":
         default:
-          console.log(`[DAP] Continuing to next step`);
-          this.continueToNextStep();
+          if (this._state.executionMode === "AnyOrder") {
+            console.debug(`[DAP] AnyOrder: rule Continue-branch \u2014 marking rule step complete`);
+            if (step) this.onStepComplete(step);
+          } else {
+            console.debug(`[DAP] Continuing to next step`);
+            this.continueToNextStep();
+          }
           break;
-      }
-    }
-    /**
-     * Terminate current flow execution
-     */
-    terminateCurrentFlow() {
-      console.log(`[DAP] Terminating current flow: ${this._currentFlow?.flowId}`);
-      this.resetFlowState();
-      if (this._currentFlow) {
-        resetFlowTracking(this._currentFlow.flowId);
       }
     }
     /**
@@ -12458,7 +12400,12 @@ var DAP = (function (exports) {
      */
     markFlowAsCompletedByBranching(flowData) {
       const flowId = flowData.flowId;
-      console.log(`[DAP] \u{1F3AF} RULE BRANCHING: Marking flow ${flowId} as completed via rule branching`);
+      console.debug(`[DAP] \u{1F3AF} RULE BRANCHING: Marking flow ${flowId} as completed via rule branching`);
+      const previewMode = detectPreviewMode();
+      if (previewMode.isPreviewMode) {
+        console.debug(`[DAP] \u{1F7E2} PREVIEW MODE: Bypassing branching completion tracking for flow ${flowId}`);
+        return;
+      }
       const flowCompletedKey = `dap_flow_completed_${flowId}`;
       const completionTimestamp = Date.now();
       const completionReason = "rule_branching";
@@ -12469,15 +12416,8 @@ var DAP = (function (exports) {
           flowType: flowData.execution?.frequency?.type || "unknown"
         });
         localStorage.setItem(flowCompletedKey, completionData);
-        console.log(`[DAP] \u2705 RULE BRANCHING: Flow ${flowId} completed via rule branching at ${new Date(completionTimestamp).toISOString()}`);
-        console.log(`[DAP] \u{1F3AF} Flow completion tracked - this satisfies the requirement: "OR a rule-based step branches to a new flow"`);
-        if (flowData.execution?.frequency?.type === "OneTime") {
-          const flowRunKey = `dap_flow_runs_${flowId}`;
-          const currentRuns = localStorage.getItem(flowRunKey);
-          const newRunCount = currentRuns ? parseInt(currentRuns, 10) : 1;
-          localStorage.setItem(flowRunKey, newRunCount.toString());
-          console.log(`[DAP] \u{1F4CA} OneTime flow run count updated: ${newRunCount}/${flowData.execution.frequency.maxRuns}`);
-        }
+        console.debug(`[DAP] \u2705 RULE BRANCHING: Flow ${flowId} completed via rule branching at ${new Date(completionTimestamp).toISOString()}`);
+        console.debug(`[DAP] \u{1F3AF} Flow completion tracked - this satisfies the requirement: "OR a rule-based step branches to a new flow"`);
       } catch (error) {
         console.error(`[DAP] Failed to mark branching completion for flow ${flowId}:`, error);
       }
@@ -12487,12 +12427,16 @@ var DAP = (function (exports) {
      * This ensures flow state is cleaned up AFTER completion is recorded
      */
     terminateCurrentFlowAfterCompletion() {
-      console.log(`[DAP] \u{1F3AF} TERMINATING FLOW: Current flow completion tracking finished, now cleaning up state`);
-      this.resetFlowState();
+      console.debug(`[DAP] \u{1F3AF} TERMINATING FLOW: Current flow completion tracking finished, now cleaning up state`);
+      const flowId = this._state.activeFlowId;
+      const endCb = this._onFlowEnd;
+      this._onFlowEnd = null;
+      endCb?.(flowId, "branched");
       if (this._currentFlow) {
-        console.log(`[DAP] \u{1F4E2} Broadcasting flow completion event for tracking system`);
+        console.debug(`[DAP] \u{1F4E2} Broadcasting flow completion event for tracking system`);
         resetFlowTracking(this._currentFlow.flowId);
       }
+      this.resetFlowState();
     }
     /**
      * Reset flow state to initial values
@@ -12509,33 +12453,65 @@ var DAP = (function (exports) {
         activeStepTriggered: false,
         executionState: "TERMINATED",
         executionMode: "Linear",
-        triggeredSteps: /* @__PURE__ */ new Set()
+        triggeredSteps: /* @__PURE__ */ new Set(),
+        anyOrderStepInProgress: false,
+        inProgressSteps: /* @__PURE__ */ new Set()
       };
       this._currentFlow = null;
+      this._completedMandatorySteps.clear();
+    }
+    /**
+     * Normalize raw server flow JSON to the internal FlowData format.
+     * Mirrors the normalizeRawFlowData helper in index.ts so that rule-branched
+     * flows and transitioned flows receive the same normalization as queued flows.
+     */
+    _normalizeRawFlowData(rawFlowData, flowId) {
+      const steps = (Array.isArray(rawFlowData.steps) ? rawFlowData.steps : null) || (Array.isArray(rawFlowData.actions) ? rawFlowData.actions : null) || (Array.isArray(rawFlowData.actionGroups) ? rawFlowData.actionGroups : null) || [];
+      const frequency = rawFlowData.execution?.frequency || rawFlowData.frequency || {
+        type: rawFlowData.frequencyType || "Always",
+        maxRuns: rawFlowData.maxRuns || 0
+      };
+      return {
+        flowId: rawFlowData.flowId || rawFlowData.id || flowId,
+        flowName: rawFlowData.flowName || rawFlowData.name || flowId,
+        steps,
+        execution: {
+          mode: rawFlowData.execution?.mode || rawFlowData.executionMode || "Linear",
+          multiPage: rawFlowData.execution?.multiPage !== void 0 ? rawFlowData.execution.multiPage : !!rawFlowData.isMultiPage,
+          frequency
+        }
+      };
     }
     /**
      * Start a new flow by ID
      */
     startNewFlow(flowId) {
-      console.log(`[DAP] Starting new flow: ${flowId}`);
-      if (typeof window !== "undefined" && window.DAP && window.DAP.startFlow) {
+      console.debug(`[DAP] Starting new flow: ${flowId}`);
+      (async () => {
         try {
-          window.DAP.startFlow(flowId);
+          const { fetchFlowById: fetchFlowById2 } = await Promise.resolve().then(() => (init_flows(), flows_exports));
+          const config = window.__DAP_CONFIG__;
+          if (!config) {
+            console.error(`[DAP] No config available to start flow: ${flowId}`);
+            window.dispatchEvent(new CustomEvent("dap:startFlow", { detail: { flowId } }));
+            return;
+          }
+          const previewMode = detectPreviewMode();
+          const previewSessionId = previewMode.isPreviewMode ? previewMode.previewSessionId : void 0;
+          const rawData = await fetchFlowById2(config, location.origin, flowId, previewSessionId);
+          const flowData = this._normalizeRawFlowData(rawData, flowId);
+          await this.startFlow(flowData);
         } catch (error) {
           console.error(`[DAP] Error starting flow ${flowId}:`, error);
+          window.dispatchEvent(new CustomEvent("dap:startFlow", { detail: { flowId } }));
         }
-      } else {
-        const event = new CustomEvent("dap:startFlow", {
-          detail: { flowId }
-        });
-        window.dispatchEvent(event);
-      }
+      })();
     }
     /**
      * Jump to a specific step within current flow
      */
     jumpToStep(stepId) {
-      console.log(`[DAP] Jumping to step: ${stepId}`);
+      console.debug(`[DAP] Jumping to step: ${stepId}`);
       if (!this._currentFlow) {
         console.error(`[DAP] Cannot jump to step: no active flow`);
         return;
@@ -12546,6 +12522,7 @@ var DAP = (function (exports) {
         this.continueToNextStep();
         return;
       }
+      this.cleanupCurrentStep();
       this._state.activeStep = targetStepIndex;
       this._state.activeStepTriggered = false;
       const targetStep = this._currentFlow.steps[targetStepIndex];
@@ -12555,263 +12532,67 @@ var DAP = (function (exports) {
      * Continue to next step in sequence
      */
     continueToNextStep() {
-      if (this._state.executionMode === "Linear") {
-        this.advanceToNextStep();
-      }
+      this.advanceToNextStep();
     }
     /**
      * Check if AnyOrder flow is complete
      */
-    checkFlowCompletion(flowId) {
-      const id = flowId || this._primaryFlowId;
-      if (!id) return;
-      const state = this._getFlowState(id);
-      const flow = this._flows.get(id);
-      if (!flow || state.executionMode !== "AnyOrder") return;
-      const mandatorySteps = flow.steps.filter(
-        (step, index) => step.stepType === "Mandatory"
+    checkFlowCompletion() {
+      if (!this._currentFlow || this._state.executionMode !== "AnyOrder") return;
+      const totalSteps = this._currentFlow.steps.length;
+      const mandatorySteps = this._currentFlow.steps.filter(
+        (step) => step.stepType === "Mandatory"
       );
-      const triggeredMandatory = flow.steps.filter(
-        (step, index) => step.stepType === "Mandatory" && state.triggeredSteps.has(index)
+      if (mandatorySteps.length === 0) {
+        console.debug(`[DAP] Flow completion check: no mandatory steps \u2014 requiring all ${totalSteps} steps to complete`);
+        if (this._state.triggeredSteps.size === totalSteps) {
+          console.debug(`[DAP] All optional steps completed, flow complete`);
+          this.completeFlow();
+        }
+        return;
+      }
+      const triggeredMandatory = this._currentFlow.steps.filter(
+        (step, index) => step.stepType === "Mandatory" && this._state.triggeredSteps.has(index)
       );
       console.debug(`[DAP] Flow completion check: ${triggeredMandatory.length}/${mandatorySteps.length} mandatory steps completed`);
       if (triggeredMandatory.length === mandatorySteps.length) {
         console.debug(`[DAP] All mandatory steps completed, flow complete`);
-        this.completeFlow(id);
+        this.completeFlow();
       }
-    }
-    /**
-     * Execute UX Experience step
-     */
-    executeUXStep(step) {
-      const ux = step.uxExperience;
-      console.debug(`[DAP] Executing UX step: ${step.stepId}`, {
-        elementSelector: ux.elementSelector,
-        elementTrigger: ux.elementTrigger,
-        elementLocation: ux.elementLocation
-      });
-      if (ux.elementLocation) {
-        const currentContext = this._locationService.getContext();
-        const locationMatches = this.matchesLocation(ux.elementLocation, currentContext);
-        if (!locationMatches) {
-          console.debug(`[DAP] Step ${step.stepId} waiting for location: ${ux.elementLocation} (current: ${currentContext.currentPath})`);
-          return;
-        }
-      }
-      console.debug(`[DAP] Step ${step.stepId} location matches, setting up trigger`);
-      const trigger = ux.elementTrigger?.toLowerCase() || "on page load";
-      if (trigger === "on page load" || trigger === "page load" || trigger === "pageload") {
-        console.debug(`[DAP] Step ${step.stepId} has immediate trigger`);
-        this.triggerUXExperience(step);
-      } else {
-        this.setupDOMTrigger(step);
-      }
-    }
-    /**
-     * Execute Rule step (DAP-standard)
-     */
-    executeRuleStep(step) {
-      console.debug(`[DAP] === FLOWENGINE: Rule step initialized: ${step.stepId} ===`);
-      console.debug(`[DAP] FlowEngine Rule Step - Step: ${step.stepId}, UserInputSelector: ${step.userInputSelector}, Rule blocks: ${step.conditionRuleBlocks?.length || 0}`);
-      if (!step.userInputSelector) {
-        console.warn(`[DAP] Rule step ${step.stepId} has no userInputSelector`);
-        return;
-      }
-      if (!step.conditionRuleBlocks || step.conditionRuleBlocks.length === 0) {
-        console.warn(`[DAP] Rule step ${step.stepId} has no conditionRuleBlocks`);
-        return;
-      }
-      this._state.executionState = "WAITING_FOR_INPUT";
-      this.setupRuleMonitoring(step);
-    }
-    setupRuleMonitoring(step) {
-      const existingCleanup = this._stepTriggerListeners.get(step.stepId);
-      if (existingCleanup) {
-        existingCleanup();
-        this._stepTriggerListeners.delete(step.stepId);
-      }
-      const inputElement = resolveSelector(step.userInputSelector);
-      if (!inputElement) {
-        console.warn(`[DAP] Input element not found: ${step.userInputSelector}`);
-        console.debug(`[DAP] Setting up page change listener to retry when page/component changes...`);
-        this.setupPageChangeRetry(step);
-        return;
-      }
-      console.debug(`[DAP] \u2705 Input element found: ${step.userInputSelector}`);
-      console.debug(`[DAP] Listening for input on ${step.userInputSelector}`);
-      const cleanup = () => {
-        inputElement.removeEventListener("input", evaluateRules2);
-        inputElement.removeEventListener("change", evaluateRules2);
-        inputElement.removeEventListener("blur", evaluateRules2);
-        console.debug(`[DAP] \u2705 Rule event listeners cleaned up for step: ${step.stepId}`);
-      };
-      let ruleMatched = false;
-      const evaluateRules2 = () => {
-        if (step.uxExperience?.elementLocation && !this.isLocationValid(step.uxExperience.elementLocation)) {
-          console.debug(`[DAP] Rule evaluation paused - wrong location. Expected: ${step.uxExperience.elementLocation}`);
-          return;
-        }
-        if (ruleMatched) {
-          console.debug(`[DAP] Rule already matched for step ${step.stepId}, ignoring additional events`);
-          return;
-        }
-        const inputValue = inputElement.value;
-        console.debug(`[DAP] Evaluating rules for input value: "${inputValue}"`);
-        for (let i = 0; i < step.conditionRuleBlocks.length; i++) {
-          const ruleBlock = step.conditionRuleBlocks[i];
-          if (evaluateRuleBlock(ruleBlock, inputValue)) {
-            console.debug(`[DAP] Rule matched \u2192 transitioning to flow ${ruleBlock.nextFlowId}`);
-            console.debug(`[DAP] Rule block ${i + 1} of ${step.conditionRuleBlocks.length} triggered the transition`);
-            ruleMatched = true;
-            cleanup();
-            console.debug(`[DAP] FlowEngine Rule Matched! Input: "${inputValue}", Next Flow: ${ruleBlock.nextFlowId}`);
-            this.transitionToFlow(ruleBlock, step.stepId);
-            return;
-          }
-        }
-        console.debug(`[DAP] No rules matched for input "${inputValue}", advancing to next step`);
-        console.debug(`[DAP] Current step: ${this._state.activeStep}, moving to: ${this._state.activeStep + 1}`);
-        ruleMatched = true;
-        cleanup();
-        console.debug(`[DAP] FlowEngine Rule Not Matched! Input: "${inputValue}", No rules satisfied, Advancing to next step...`);
-        this.advanceToNextStep();
-      };
-      inputElement.addEventListener("input", evaluateRules2);
-      inputElement.addEventListener("change", evaluateRules2);
-      inputElement.addEventListener("blur", evaluateRules2);
-      this._stepTriggerListeners.set(step.stepId, cleanup);
-    }
-    setupPageChangeRetry(step) {
-      let unsubscribeLocation = null;
-      const retryOnPageChange = () => {
-        console.debug(`[DAP] Page/component changed - retrying element detection for rule step: ${step.stepId}`);
-        if (unsubscribeLocation) {
-          unsubscribeLocation();
-          unsubscribeLocation = null;
-        }
-        this.setupRuleMonitoring(step);
-      };
-      unsubscribeLocation = this._locationService.subscribe(retryOnPageChange);
-      const observer = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-          if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
-            const addedNodes = Array.from(mutation.addedNodes);
-            for (const node of addedNodes) {
-              if (node.nodeType === Node.ELEMENT_NODE) {
-                try {
-                  const targetElement = resolveSelector(step.userInputSelector);
-                  if (targetElement) {
-                    console.debug(`[DAP] Target element appeared in DOM - retrying rule setup`);
-                    observer.disconnect();
-                    if (unsubscribeLocation) {
-                      unsubscribeLocation();
-                    }
-                    this.setupRuleMonitoring(step);
-                    return;
-                  }
-                } catch (error) {
-                  console.debug(`[DAP] Element still not available: ${error}`);
-                }
-              }
-            }
-          }
-        }
-      });
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true
-      });
-      const existingObserver = this._domObservers.get(step.stepId);
-      if (existingObserver) {
-        existingObserver.disconnect();
-      }
-      this._domObservers.set(step.stepId, observer);
-    }
-    /**
-    * Evaluate a rule block (DAP-standard)
-    */
-    /**
-     * Transition to next flow (DAP-standard)
-     */
-    async transitionToFlow(ruleBlock, fromStepId) {
-      console.debug(`[DAP] Current flow terminated`);
-      console.debug(`[DAP] Transitioning from step ${fromStepId} to flow ${ruleBlock.nextFlowId}`);
-      this._state.executionState = "TRANSITIONING";
-      this.cleanupCurrentStep();
-      this.abortFlow();
-      try {
-        const { fetchFlowById: fetchFlowById2 } = await Promise.resolve().then(() => (init_flows(), flows_exports));
-        const config = window.__DAP_CONFIG__;
-        if (!config) {
-          console.error("[DAP] No config available for flow transition");
-          return;
-        }
-        const flowData = await fetchFlowById2(config, location.origin, ruleBlock.nextFlowId);
-        await this.startFlow(flowData);
-      } catch (error) {
-        console.error(`[DAP] Failed to transition to flow ${ruleBlock.nextFlowId}:`, error);
-        this._state.executionState = "TERMINATED";
-      }
-    }
-    /**
-     * Set up DOM trigger for UX step
-     */
-    setupDOMTrigger(step) {
-      const ux = step.uxExperience;
-      if (!ux.elementSelector) {
-        console.warn(`[DAP] UX step ${step.stepId} has no elementSelector`);
-        this.advanceToNextStep();
-        return;
-      }
-      this.waitForElement(ux.elementSelector, (element) => {
-        if (this._state.activeStepTriggered) return;
-        const trigger = ux.elementTrigger?.toLowerCase() || "click";
-        const normalizedTrigger = normalizeTrigger(trigger);
-        console.debug(`[DAP] Setting up trigger "${normalizedTrigger.eventType}" on ${ux.elementSelector}`);
-        const triggerHandler = () => {
-          if (this._state.activeStepTriggered) return;
-          console.debug(`[DAP] Trigger fired for step: ${step.stepId}`);
-          this.triggerUXExperience(step);
-        };
-        console.debug(`[DAP] Trigger handler created for step ${step.stepId}`);
-        if (normalizedTrigger.isSynthetic) {
-          if (normalizedTrigger.eventType === "pageload") {
-            setTimeout(() => triggerHandler(), 0);
-          }
-        } else {
-          element.addEventListener(normalizedTrigger.eventType, triggerHandler);
-          this._stepTriggerListeners.set(step.stepId, () => {
-            element.removeEventListener(normalizedTrigger.eventType, triggerHandler);
-          });
-        }
-      });
     }
     /**
      * Trigger UX experience rendering
      */
-    triggerUXExperience(step, flowId) {
-      const id = flowId || this._primaryFlowId;
-      if (!id) return;
-      const state = this._getFlowState(id);
-      const flow = this._flows.get(id);
-      if (flow) {
-        trackStepView(flow.flowId, step.stepId).catch((error) => {
+    triggerUXExperience(step) {
+      if (this._currentFlow) {
+        trackStepView(this._currentFlow.flowId, step.stepId).catch((error) => {
           console.debug(`[DAP] Step tracking failed: ${error.message}`);
         });
       }
-      console.log(`[DAP] Triggering UX experience for step ${step.stepId} for flow ${id}`);
       const ux = step.uxExperience;
+      const rawTargetSelector = ux.elementSelector && ux.elementSelector !== "NA" ? ux.elementSelector : step.trigger?.conditions?.find((c) => c.selector)?.selector;
+      let resolvedTargetSelector = rawTargetSelector;
+      if (rawTargetSelector) {
+        const targetEl = resolveSelectorWithCache(step.stepId, rawTargetSelector);
+        if (targetEl) {
+          resolvedTargetSelector = rawTargetSelector;
+          console.debug(`[DAP] Target element resolved for step ${step.stepId}: "${rawTargetSelector}"`);
+        } else {
+          console.debug(`[DAP] Target element not found for step ${step.stepId} (selector: "${rawTargetSelector}") \u2014 renderer will attempt its own lookup`);
+        }
+      } else {
+        console.debug(`[DAP] No target selector for step ${step.stepId} \u2014 experience will render without a DOM anchor`);
+      }
       Promise.resolve().then(() => (init_registry(), registry_exports)).then(({ getRenderer: getRenderer2 }) => {
         const experienceType = ux.uxExperienceType.toLowerCase();
         const rendererType = experienceType === "microsurvey" ? "survey" : experienceType;
         const renderer = getRenderer2(rendererType);
         if (!renderer) {
           console.error(`[DAP] No renderer found for: ${ux.uxExperienceType}`);
-          this.advanceToNextStep(id);
+          this.advanceToNextStep();
           return;
         }
         let payload;
-        console.log(`[DAP] Preparing payload for renderer: ${rendererType} (Step ${step.stepId})`);
         if (experienceType === "modal") {
           let bodyContent = [];
           if (ux.modalContent) {
@@ -12855,8 +12636,9 @@ var DAP = (function (exports) {
               case "article":
                 bodyContent.push({
                   kind: "article",
-                  url: modalContent.presignedUrl || modalContent.contentData || "",
-                  fileName: modalContent.contentName,
+                  url: modalContent.presignedUrl || "",
+                  fileName: modalContent.contentData || modalContent.contentName || "document",
+                  title: modalContent.contentDescription || modalContent.contentName,
                   mime: modalContent.mime || "application/pdf"
                 });
                 break;
@@ -12901,69 +12683,57 @@ var DAP = (function (exports) {
             theme: {},
             _completionTracker: {
               onComplete: () => {
-                console.debug(`[DAP] UX experience completed for step: ${step.stepId}`);
-                if (flow && state.activeStep < flow.steps.length && flow.steps[state.activeStep].stepId === step.stepId) {
-                  this.advanceToNextStep(id);
-                } else {
-                  console.debug(`[DAP] Step ${step.stepId} is no longer active, skipping advancement`);
-                }
+                this.onStepComplete(step);
               }
             }
           };
         } else if (experienceType === "tooltip") {
+          const tooltipConditionEvent = step.trigger?.conditions?.[0]?.event;
+          const tooltipTrigger = tooltipConditionEvent === "mouseover" || tooltipConditionEvent === "mouseenter" ? "hover" : tooltipConditionEvent === "load" ? "pageload" : tooltipConditionEvent || "hover";
           payload = {
-            targetSelector: ux.elementSelector,
+            targetSelector: resolvedTargetSelector,
             text: ux.content?.text || ux.content?.body || "Tooltip",
-            placement: ux.content?.placement || "auto",
-            trigger: "hover",
-            // Ensure trigger is set correctly
+            placement: (ux.content?.placement || "auto").toLowerCase(),
+            trigger: tooltipTrigger,
             stepId: step.stepId,
             _completionTracker: {
               onComplete: () => {
-                console.debug(`[DAP] UX experience completed for step: ${step.stepId}`);
-                this.advanceToNextStep(id);
+                this.onStepComplete(step);
               }
             }
           };
         } else if (experienceType === "popover") {
+          const popoverConditionEvent = step.trigger?.conditions?.[0]?.event;
+          const popoverTrigger = ux.content?.trigger || (popoverConditionEvent === "mouseover" || popoverConditionEvent === "mouseenter" ? "hover" : popoverConditionEvent === "load" ? "pageload" : popoverConditionEvent || "click");
           payload = {
-            targetSelector: ux.elementSelector,
+            targetSelector: resolvedTargetSelector,
             title: ux.content?.title || ux.content?.header,
             body: ux.content?.body,
             placement: ux.content?.placement || "auto",
-            trigger: ux.elementTrigger || ux.content?.trigger || "click",
+            trigger: popoverTrigger,
             showArrow: ux.content?.showArrow !== false,
             stepId: step.stepId,
             _completionTracker: {
               onComplete: () => {
-                console.debug(`[DAP] UX experience completed for step: ${step.stepId}`);
-                this.advanceToNextStep(id);
+                this.onStepComplete(step);
               }
             }
           };
-        } else if (experienceType === "survey" || experienceType === "microsurvey") {
+        } else if (experienceType === "survey") {
+          const config = window.__DAP_CONFIG__;
           payload = {
-            // Standard survey fields
-            header: ux.content?.header || ux.content?.title,
-            body: ux.content?.body,
+            targetSelector: resolvedTargetSelector,
             questions: ux.content?.questions || [],
-            // Micro survey fields (singular forms for lightweight surveys)
-            question: ux.content?.question || ux.content?.title || ux.content?.header,
-            type: ux.content?.type || ux.content?.surveyType || "choice",
-            options: ux.content?.options,
-            placeholder: ux.content?.placeholder,
-            submitText: ux.content?.submitText,
-            cancelText: ux.content?.cancelText,
-            rating: ux.content?.rating,
-            targetSelector: ux.elementSelector,
-            position: ux.content?.position || "center",
-            mode: ux.content?.mode,
-            // Let renderer decide if not specified
+            header: ux.content?.header,
+            body: ux.content?.body,
+            questionId: ux.content?.questionId,
+            flowId: this._state.activeFlowId,
+            organizationId: config?.organizationid || config?.organizationId,
+            siteId: config?.siteid || config?.siteId || config?.siteCollectionId,
             stepId: step.stepId,
             _completionTracker: {
               onComplete: () => {
-                console.debug(`[DAP] UX experience completed for step: ${step.stepId}`);
-                this.advanceToNextStep(id);
+                this.onStepComplete(step);
               }
             }
           };
@@ -12990,9 +12760,13 @@ var DAP = (function (exports) {
             position: positionString,
             autoDismiss: ux.content?.autoDismiss,
             action: ux.content?.action,
-            targetSelector: ux.elementSelector,
-            // Add target selector for element-relative positioning
-            trigger: ux.elementTrigger || "click",
+            // targetSelector is resolved via resolvedTargetSelector above:
+            // ux.elementSelector (if valid) → trigger.conditions[].selector → undefined
+            targetSelector: resolvedTargetSelector,
+            trigger: (() => {
+              const e = step.trigger?.conditions?.[0]?.event;
+              return e === "mouseover" || e === "mouseenter" ? "hover" : e === "load" ? "pageload" : e || "click";
+            })(),
             beaconStyles: {
               enabled: true,
               color1: ux.content?.color || "#f59e0b",
@@ -13003,89 +12777,107 @@ var DAP = (function (exports) {
             stepId: step.stepId,
             _completionTracker: {
               onComplete: () => {
-                console.debug(`[DAP] UX experience completed for step: ${step.stepId}`);
-                this.advanceToNextStep(id);
+                this.onStepComplete(step);
               }
             }
           };
-        } else if (experienceType === "banner" || experienceType === "alert") {
+        } else if (experienceType === "microsurvey") {
+          const hasMultipleQuestions = ux.content?.questions && ux.content.questions.length > 1;
+          const hasComplexQuestions = ux.content?.questions?.some(
+            (q) => ["OpinionScaleChoice", "NpsScale", "NpsOptions", "StarChoice"].includes(q.type)
+          );
+          const shouldUseModal = hasMultipleQuestions || hasComplexQuestions;
+          console.debug(`[DAP] MicroSurvey mode detection:`, {
+            questionsCount: ux.content?.questions?.length || 0,
+            hasMultipleQuestions,
+            hasComplexQuestions,
+            shouldUseModal,
+            finalMode: shouldUseModal ? "modal" : "inline"
+          });
           payload = {
-            message: ux.content?.message || ux.content?.body || ux.content?.header || "",
-            variant: ux.content?.variant || ux.content?.type || "info",
-            position: ux.content?.position || "top",
-            dismissible: ux.content?.dismissible !== false,
-            autoHide: ux.content?.autoHide || ux.content?.autoDismiss,
-            actions: ux.content?.actions || [],
+            // Include both single question fields (for simple micro surveys)
+            question: ux.content?.question || ux.content?.title || ux.content?.header,
+            type: ux.content?.type || "choice",
+            options: ux.content?.options,
+            placeholder: ux.content?.placeholder,
+            submitText: ux.content?.submitText,
+            cancelText: ux.content?.cancelText,
+            rating: ux.content?.rating,
+            questionId: ux.content?.questionId,
+            // Include full survey fields (for complex surveys)
+            header: ux.content?.header,
+            body: ux.content?.body,
+            questions: ux.content?.questions,
+            // Positioning and behavior
+            targetSelector: resolvedTargetSelector,
+            position: ux.content?.position || "center",
+            mode: shouldUseModal ? "modal" : "inline",
+            // Smart mode detection
+            // Survey submission fields
+            flowId: this._state.activeFlowId,
+            organizationId: window.__DAP_CONFIG__?.organizationid || window.__DAP_CONFIG__?.organizationId,
+            siteId: window.__DAP_CONFIG__?.siteid || window.__DAP_CONFIG__?.siteId || window.__DAP_CONFIG__?.siteCollectionId,
             stepId: step.stepId,
             _completionTracker: {
               onComplete: () => {
-                console.debug(`[DAP] UX experience completed for step: ${step.stepId}`);
-                this.advanceToNextStep(id);
+                this.onStepComplete(step);
               }
             }
           };
-        } else if (experienceType === "hotspots" || experienceType === "hotspot-tour") {
+        } else if (experienceType === "alert" || experienceType === "banner") {
           payload = {
-            title: ux.content?.title || ux.content?.header,
-            description: ux.content?.description || ux.content?.body,
-            hotspots: ux.content?.hotspots || ux.content?.steps || [],
-            steps: ux.content?.steps || ux.content?.hotspots || [],
-            showProgress: ux.content?.showProgress !== false,
-            allowSkip: ux.content?.allowSkip !== false,
+            message: ux.content?.body || ux.content?.message || ux.content?.text || ux.content?.header || "Alert",
+            variant: ux.content?.variant || ux.content?.type || ux.content?.level?.toLowerCase() || "info",
+            position: ux.content?.position || "top",
+            dismissible: ux.content?.dismissible !== false,
+            autoHide: ux.content?.autoDismiss || ux.content?.autoHide,
+            actions: ux.content?.actions || [],
             theme: ux.content?.theme || {},
             stepId: step.stepId,
             _completionTracker: {
               onComplete: () => {
-                console.debug(`[DAP] UX experience completed for step: ${step.stepId}`);
-                this.advanceToNextStep(id);
+                this.onStepComplete(step);
               }
             }
           };
         } else {
           payload = {
-            ...ux.content,
-            stepId: step.stepId,
-            targetSelector: ux.elementSelector,
-            trigger: ux.elementTrigger,
+            steps: [{
+              stepId: step.stepId,
+              kind: experienceType,
+              [experienceType]: {
+                ...ux.content,
+                stepId: step.stepId
+              },
+              title: ux.content?.header || ux.content?.title || "Info",
+              elementSelector: ux.elementSelector
+            }],
             _completionTracker: {
               onComplete: () => {
-                console.debug(`[DAP] UX experience completed for step: ${step.stepId}`);
-                this.advanceToNextStep(id);
+                this.onStepComplete(step);
               }
             }
           };
-          payload.steps = [{
-            stepId: step.stepId,
-            kind: experienceType,
-            [experienceType]: {
-              ...ux.content,
-              stepId: step.stepId
-            },
-            title: ux.content?.header || ux.content?.title || "Info",
-            elementSelector: ux.elementSelector,
-            elementTrigger: ux.elementTrigger,
-            elementLocation: ux.elementLocation
-          }];
         }
         const flowForRenderer = {
           id: `step-${step.stepId}`,
           type: experienceType,
-          payload
+          payload,
+          config: window.__DAP_CONFIG__
         };
         console.debug(`[DAP] Rendering ${experienceType} experience:`, flowForRenderer);
         console.debug(`[DAP] Payload structure:`, {
           type: experienceType,
           targetSelector: payload.targetSelector,
           trigger: payload.trigger,
-          elementSelector: ux.elementSelector,
-          elementTrigger: ux.elementTrigger
+          elementSelector: ux.elementSelector
         });
         if (experienceType === "tooltip") {
           flowForRenderer.payload.trigger = payload.trigger || "hover";
-          flowForRenderer.payload.targetSelector = payload.targetSelector || ux.elementSelector;
+          flowForRenderer.payload.targetSelector = payload.targetSelector;
         } else if (experienceType === "popover") {
           flowForRenderer.payload.trigger = payload.trigger || "click";
-          flowForRenderer.payload.targetSelector = payload.targetSelector || ux.elementSelector;
+          flowForRenderer.payload.targetSelector = payload.targetSelector;
         } else if (experienceType === "modal") {
           console.debug(`[DAP] Modal content transformation:`, {
             originalModalContent: ux.modalContent,
@@ -13096,53 +12888,113 @@ var DAP = (function (exports) {
         renderer(flowForRenderer);
       }).catch((err) => {
         console.error("[DAP] Error loading experience renderer:", err);
-        this.advanceToNextStep(id);
+        if (this._currentFlow && this._currentFlow.steps[this._state.activeStep]?.stepId === step.stepId) {
+          this.advanceToNextStep();
+        }
       });
+    }
+    /**
+     * Unified UX experience completion handler for both Linear and AnyOrder modes.
+     * - AnyOrder: clears concurrency guard, marks step complete, checks flow completion.
+     * - Linear: advances to the next step (existing behaviour).
+     */
+    onStepComplete(step) {
+      console.debug(`[DAP] UX experience completed for step: ${step.stepId}`);
+      if (this._state.executionMode === "AnyOrder") {
+        this._state.anyOrderStepInProgress = false;
+        const stepIndex = this._currentFlow?.steps.findIndex((s) => s.stepId === step.stepId) ?? -1;
+        if (stepIndex >= 0) {
+          this._state.triggeredSteps.add(stepIndex);
+          this._state.inProgressSteps.delete(stepIndex);
+          console.debug(`[DAP] AnyOrder: step ${stepIndex} (${step.stepId}) marked complete`);
+          triggerManager.unregisterTrigger(step.stepId);
+        }
+        if (this._pendingAnyOrderSteps.length > 0 && this._state.flowInProgress) {
+          const pending = this._pendingAnyOrderSteps.shift();
+          setTimeout(() => {
+            if (!this._state.flowInProgress || this._state.triggeredSteps.has(pending.stepIndex)) {
+              return;
+            }
+            if (this._state.anyOrderStepInProgress) {
+              this._pendingAnyOrderSteps.unshift(pending);
+              console.debug(`[DAP] AnyOrder: pending step ${pending.step.stepId} re-queued \u2014 another step is now in-progress`);
+              return;
+            }
+            this._state.inProgressSteps.add(pending.stepIndex);
+            if (!this._state.runCounted && this._currentFlow) {
+              this.incrementFlowRunCount(this._currentFlow);
+              this._state.runCounted = true;
+            }
+            const pendingIsRuleBased = !pending.step.uxExperience && pending.step.conditionRuleBlocks != null && pending.step.conditionRuleBlocks.length > 0;
+            if (pendingIsRuleBased) {
+              this._state.inProgressSteps.delete(pending.stepIndex);
+              const inputEl = pending.step.userInputSelector ? resolveSelectorWithPriority(pending.step.userInputSelector) : null;
+              const inputType = inputEl ? this.getInputElementType(inputEl) : "unknown";
+              if (!["text", "email", "password", "textarea", "number", "search", "url", "tel"].includes(inputType)) {
+                this.evaluateStepRulesWithValue(pending.step, "", "change");
+              }
+            } else {
+              this._state.anyOrderStepInProgress = true;
+              this.executeStepContent(pending.step);
+              this.postStepTransition(pending.step);
+            }
+          }, 0);
+        }
+        this.checkFlowCompletion();
+      } else {
+        this._state.anyOrderStepInProgress = false;
+        if (this._currentFlow && this._state.activeStep < this._currentFlow.steps.length && this._currentFlow.steps[this._state.activeStep].stepId === step.stepId) {
+          this.advanceToNextStep();
+        } else {
+          console.debug(`[DAP] Step ${step.stepId} is no longer active, skipping advancement`);
+        }
+      }
     }
     /**
      * Advance to next step intelligently (respects triggers)
      * Enhanced with CRITICAL FIXES 1-6 integration
      */
-    advanceToNextStep(flowId) {
-      const id = flowId || this._primaryFlowId;
-      if (!id) return;
-      const state = this._getFlowState(id);
-      const flow = this._flows.get(id);
-      if (state.stepAdvancing) {
-        console.debug(`[DAP] Step advancement already in progress for flow ${id}, skipping duplicate request`);
+    advanceToNextStep() {
+      if (!this._currentFlow || !this._state.activeFlowId) {
+        console.debug(`[DAP] advanceToNextStep: no active flow \u2014 ignoring stale callback`);
         return;
       }
-      state.stepAdvancing = true;
-      console.debug(`[DAP] ========== ADVANCING FROM STEP ${state.activeStep} FOR FLOW ${id} ==========`);
-      this.cleanupCurrentStep(id);
-      if (state.executionMode === "Linear") {
-        this.cleanupPreviousStepTriggers(id);
+      if (this._state.stepAdvancing) {
+        console.debug(`[DAP] Step advancement already in progress, skipping duplicate request`);
+        return;
       }
-      state.activeStep++;
-      state.activeStepTriggered = false;
-      console.debug(`[DAP] Advanced to step ${state.activeStep} for flow ${id}`);
-      if (flow && state.activeStep < flow.steps.length) {
-        const nextStep = flow.steps[state.activeStep];
+      this._state.stepAdvancing = true;
+      console.debug(`[DAP] ========== ADVANCING FROM STEP ${this._state.activeStep} ==========`);
+      this.cleanupCurrentStep();
+      if (this._state.executionMode === "Linear") {
+        this.cleanupPreviousStepTriggers();
+      }
+      this._state.activeStep++;
+      this._state.activeStepTriggered = false;
+      console.debug(`[DAP] Advanced to step ${this._state.activeStep}`);
+      if (this._currentFlow && this._state.activeStep < this._currentFlow.steps.length) {
+        const nextStep = this._currentFlow.steps[this._state.activeStep];
         console.debug(`[DAP] Next step: ${nextStep.stepId} (type: ${nextStep.stepType})`);
         if (nextStep.stepType === "Mandatory") {
-          console.log(`[DAP] \u{1F4CB} MANDATORY STEP: Starting mandatory step ${nextStep.stepId} for flow ${id}`);
+          console.debug(`[DAP] \u{1F4CB} MANDATORY STEP: Starting mandatory step ${nextStep.stepId}`);
         }
         const nextStepTrigger = triggerManager.resolveTrigger(nextStep);
-        const shouldWaitForTrigger = state.executionMode !== "Linear";
-        if (nextStepTrigger && shouldWaitForTrigger) {
-          console.debug(`[DAP] Next step ${nextStep.stepId} has trigger, setting up listener (waiting)`);
-          this.executeStepWithTrigger(nextStep, state.activeStep, id);
-          state.stepAdvancing = false;
+        if (nextStepTrigger) {
+          console.debug(`[DAP] Next step ${nextStep.stepId} has trigger, setting up listener`);
+          this.executeStepWithTrigger(nextStep, this._state.activeStep);
+          this._state.stepAdvancing = false;
           return;
+        } else {
+          console.debug(`[DAP] Next step ${nextStep.stepId} has no trigger - executing immediately`);
         }
-      } else if (flow) {
-        console.debug(`[DAP] No more steps for flow ${id}, flow completed`);
-        state.stepAdvancing = false;
-        this.completeFlow(id);
+      } else {
+        console.debug(`[DAP] No more steps, flow completed`);
+        this._state.stepAdvancing = false;
+        this.completeFlow();
         return;
       }
-      state.stepAdvancing = false;
-      this.executeStep(id);
+      this._state.stepAdvancing = false;
+      this.executeStep();
     }
     /**
      * CRITICAL FIX: Enhanced advance to next step that checks for existing input values and evaluates rules
@@ -13166,25 +13018,30 @@ var DAP = (function (exports) {
         const nextStep = this._currentFlow.steps[this._state.activeStep];
         console.debug(`[DAP] Next step: ${nextStep.stepId} (type: ${nextStep.stepType})`);
         if (nextStep.stepType === "Mandatory") {
-          console.log(`[DAP] \u{1F4CB} MANDATORY STEP: Starting mandatory step ${nextStep.stepId}`);
+          console.debug(`[DAP] \u{1F4CB} MANDATORY STEP: Starting mandatory step ${nextStep.stepId}`);
         }
         const nextStepTrigger = triggerManager.resolveTrigger(nextStep);
         if (nextStepTrigger) {
           console.debug(`[DAP] Next step ${nextStep.stepId} has trigger, setting up listener`);
           if (!nextStep.uxExperience && nextStep.conditionRuleBlocks && nextStep.conditionRuleBlocks.length > 0 && nextStep.userInputSelector) {
-            console.log(`[DAP] \u{1F50D} RULE CHECK: Step ${nextStep.stepId} is rule-based, checking for existing input value`);
-            this.waitForInputElement(nextStep.userInputSelector, (inputElement) => {
+            console.debug(`[DAP] \u{1F50D} RULE CHECK: Step ${nextStep.stepId} is rule-based, checking for existing input value`);
+            const cancelRuleCheck = this.waitForInputElement(nextStep.userInputSelector, (inputElement) => {
+              if (!this._currentFlow || !this._currentFlow.steps.some((s) => s.stepId === nextStep.stepId)) {
+                console.debug(`[DAP] \u{1F50D} RULE CHECK: Flow changed while waiting for input element, aborting`);
+                return;
+              }
               const existingValue = inputElement.value;
-              console.log(`[DAP] \u{1F50D} RULE CHECK: Found existing input value: "${existingValue}"`);
+              console.debug(`[DAP] \u{1F50D} RULE CHECK: Found existing input value: "${existingValue}"`);
               if (existingValue && existingValue.trim() !== "") {
-                console.log(`[DAP] \u{1F50D} RULE CHECK: Existing value found but NOT evaluating rules immediately`);
-                console.log(`[DAP] \u{1F3AF} Rules will evaluate ONLY when user focuses out (blur event)`);
+                console.debug(`[DAP] \u{1F50D} RULE CHECK: Existing value found but NOT evaluating rules immediately`);
+                console.debug(`[DAP] \u{1F3AF} Rules will evaluate ONLY when user focuses out (blur event)`);
                 this.executeStepWithTrigger(nextStep, this._state.activeStep);
               } else {
-                console.log(`[DAP] \u{1F50D} RULE CHECK: No existing value, setting up trigger normally`);
+                console.debug(`[DAP] \u{1F50D} RULE CHECK: No existing value, setting up trigger normally`);
                 this.executeStepWithTrigger(nextStep, this._state.activeStep);
               }
             });
+            this._stepTriggerListeners.set(`${nextStep.stepId}_waitCancel`, cancelRuleCheck);
           } else {
             this.executeStepWithTrigger(nextStep, this._state.activeStep);
           }
@@ -13206,16 +13063,23 @@ var DAP = (function (exports) {
      * Complete current flow
      * Enhanced with flow completion tracking for frequency validation
      */
-    completeFlow(flowId) {
-      const id = flowId || this._primaryFlowId;
-      if (!id) return;
-      this._getFlowState(id);
-      const flow = this._flows.get(id);
-      console.debug(`[DAP] Flow completed: ${id}`);
-      if (flow && id) {
-        this.markFlowCompleted(flow);
+    completeFlow() {
+      const flowData = this._currentFlow;
+      const flowId = this._state.activeFlowId;
+      console.debug(`[DAP] Flow completed: ${flowId}`);
+      if (flowData && flowId) {
+        this.markFlowCompleted(flowData);
       }
-      this.abortFlow(id);
+      const endCb = this._onFlowEnd;
+      this._onFlowEnd = null;
+      endCb?.(flowId, "completed");
+      this.abortFlow();
+      if (flowData && flowData.execution?.frequency?.type === "Recurring") {
+        console.debug(`[DAP] \u{1F504} Flow ${flowId} completed but is RECURRING - re-registering triggers`);
+        setTimeout(() => {
+          this.startFlow(flowData);
+        }, 100);
+      }
     }
     /**
      * 🚨 CRITICAL FIX: Mark flow as completed in tracking system
@@ -13223,85 +13087,100 @@ var DAP = (function (exports) {
      */
     markFlowCompleted(flowData) {
       const flowId = flowData.flowId;
-      console.log(`[DAP] \u{1F3AF} Marking flow ${flowId} as completed`);
+      console.debug(`[DAP] \u{1F3AF} Marking flow ${flowId} as completed`);
       if (flowData.execution?.frequency?.type === "OneTime") {
         const flowCompletedKey = `dap_flow_completed_${flowId}`;
         const completionTimestamp = Date.now();
         try {
-          localStorage.setItem(flowCompletedKey, completionTimestamp.toString());
-          console.log(`[DAP] \u2705 OneTime flow ${flowId} marked as completed at ${new Date(completionTimestamp).toISOString()}`);
-          console.log(`[DAP] \u{1F3AF} This flow will be blocked on future attempts due to OneTime + maxRuns limit`);
+          const completionData = JSON.stringify({
+            timestamp: completionTimestamp,
+            reason: "completed",
+            flowType: flowData.execution?.frequency?.type || "unknown"
+          });
+          localStorage.setItem(flowCompletedKey, completionData);
+          console.debug(`[DAP] \u2705 OneTime flow ${flowId} marked as completed at ${new Date(completionTimestamp).toISOString()}`);
+          console.debug(`[DAP] \u{1F3AF} This flow will be blocked on future attempts due to OneTime + maxRuns limit`);
         } catch (error) {
           console.error(`[DAP] Failed to mark flow ${flowId} as completed:`, error);
         }
       }
     }
     /**
-     * Redirect to another flow
-     */
-    async redirectToFlow(nextFlowId) {
-      console.debug(`[DAP] Redirecting to flow: ${nextFlowId}`);
-      try {
-        const { fetchFlowById: fetchFlowById2 } = await Promise.resolve().then(() => (init_flows(), flows_exports));
-        const config = window.__DAP_CONFIG__;
-        if (!config) {
-          console.error("[DAP] No config available for flow redirect");
-          return;
-        }
-        const flowData = await fetchFlowById2(config, location.origin, nextFlowId);
-        this.startFlow(flowData);
-      } catch (err) {
-        console.error(`[DAP] Failed to redirect to flow ${nextFlowId}:`, err);
-      }
-    }
-    /**
      * Clean up current step listeners and state
      */
-    cleanupCurrentStep(flowId) {
-      const id = flowId || this._primaryFlowId;
-      if (!id) return;
-      const state = this._getFlowState(id);
-      const flow = this._flows.get(id);
-      if (!flow) return;
-      const stepId = flow.steps[state.activeStep]?.stepId;
-      if (!stepId) return;
-      console.debug(`[DAP] Cleaning up step ${stepId} for flow ${id}`);
-      this.clearRuleEvaluationTimers(stepId);
-      this.clearInputStabilityTimers(stepId);
-      this._lastInputValues.delete(stepId);
-      this._inputStabilityChecks.delete(stepId);
-      triggerManager.removeTriggerListeners(stepId);
-      const cleanup = this._stepTriggerListeners.get(stepId);
-      if (cleanup) {
-        cleanup();
-        this._stepTriggerListeners.delete(stepId);
+    cleanupCurrentStep() {
+      if (this._state.executionMode === "AnyOrder" && this._currentFlow) {
+        this._currentFlow.steps.forEach((step, index) => {
+          if (!this._state.triggeredSteps.has(index)) {
+            triggerManager.removeTriggerListeners(step.stepId);
+            ["", "_blur", "_waitCancel", "_locationRetry", "_defer"].forEach((suffix) => {
+              const cleanup = this._stepTriggerListeners.get(`${step.stepId}${suffix}`);
+              if (cleanup) {
+                cleanup();
+                this._stepTriggerListeners.delete(`${step.stepId}${suffix}`);
+              }
+            });
+            this.clearRuleEvaluationTimers(step.stepId);
+            this.clearInputStabilityTimers(step.stepId);
+            const obs = this._domObservers.get(step.stepId);
+            if (obs) {
+              obs.disconnect();
+              this._domObservers.delete(step.stepId);
+            }
+          }
+        });
+        return;
       }
-      const blurCleanup = this._stepTriggerListeners.get(`${stepId}_blur`);
-      if (blurCleanup) {
-        blurCleanup();
-        this._stepTriggerListeners.delete(`${stepId}_blur`);
+      if (this._currentFlow && this._state.activeStep < this._currentFlow.steps.length) {
+        const currentStep = this._currentFlow.steps[this._state.activeStep];
+        if (currentStep) {
+          triggerManager.unregisterTrigger(currentStep.stepId);
+          const cleanup = this._stepTriggerListeners.get(currentStep.stepId);
+          if (cleanup) {
+            cleanup();
+            this._stepTriggerListeners.delete(currentStep.stepId);
+          }
+          const blurCleanup = this._stepTriggerListeners.get(`${currentStep.stepId}_blur`);
+          if (blurCleanup) {
+            blurCleanup();
+            this._stepTriggerListeners.delete(`${currentStep.stepId}_blur`);
+          }
+          const waitCancel = this._stepTriggerListeners.get(`${currentStep.stepId}_waitCancel`);
+          if (waitCancel) {
+            waitCancel();
+            this._stepTriggerListeners.delete(`${currentStep.stepId}_waitCancel`);
+          }
+          const locationRetryCleanup = this._stepTriggerListeners.get(`${currentStep.stepId}_locationRetry`);
+          if (locationRetryCleanup) {
+            locationRetryCleanup();
+            this._stepTriggerListeners.delete(`${currentStep.stepId}_locationRetry`);
+          }
+          this.clearRuleEvaluationTimers(currentStep.stepId);
+          this.clearInputStabilityTimers(currentStep.stepId);
+        }
       }
-      const observer = this._domObservers.get(stepId);
-      if (observer) {
-        observer.disconnect();
-        this._domObservers.delete(stepId);
+      if (this._currentFlow && this._state.activeStep < this._currentFlow.steps.length) {
+        const currentStep = this._currentFlow.steps[this._state.activeStep];
+        if (currentStep) {
+          const observer = this._domObservers.get(currentStep.stepId);
+          if (observer) {
+            observer.disconnect();
+            this._domObservers.delete(currentStep.stepId);
+          }
+        }
       }
     }
     /**
      * CRITICAL FIX 1: Clean up triggers from previous steps in linear mode
      * This enforces the Linear Execution Gate by ensuring only current step has active triggers
      */
-    cleanupPreviousStepTriggers(flowId) {
-      const id = flowId || this._primaryFlowId;
-      if (!id) return;
-      const state = this._getFlowState(id);
-      const flow = this._flows.get(id);
-      if (!flow || state.executionMode !== "Linear") return;
-      for (let i = 0; i < state.activeStep; i++) {
-        if (i < flow.steps.length) {
-          const previousStep = flow.steps[i];
+    cleanupPreviousStepTriggers() {
+      if (!this._currentFlow || this._state.executionMode !== "Linear") return;
+      for (let i = 0; i < this._state.activeStep; i++) {
+        if (i < this._currentFlow.steps.length) {
+          const previousStep = this._currentFlow.steps[i];
           console.debug(`[DAP] Linear Execution Gate: Cleaning up triggers for previous step ${previousStep.stepId} (${i})`);
-          triggerManager.removeTriggerListeners(previousStep.stepId);
+          triggerManager.unregisterTrigger(previousStep.stepId);
           const cleanup = this._stepTriggerListeners.get(previousStep.stepId);
           if (cleanup) {
             cleanup();
@@ -13311,6 +13190,16 @@ var DAP = (function (exports) {
           if (blurCleanup) {
             blurCleanup();
             this._stepTriggerListeners.delete(`${previousStep.stepId}_blur`);
+          }
+          const waitCancel = this._stepTriggerListeners.get(`${previousStep.stepId}_waitCancel`);
+          if (waitCancel) {
+            waitCancel();
+            this._stepTriggerListeners.delete(`${previousStep.stepId}_waitCancel`);
+          }
+          const locationRetryCleanup = this._stepTriggerListeners.get(`${previousStep.stepId}_locationRetry`);
+          if (locationRetryCleanup) {
+            locationRetryCleanup();
+            this._stepTriggerListeners.delete(`${previousStep.stepId}_locationRetry`);
           }
           this.clearRuleEvaluationTimers(previousStep.stepId);
           this.clearInputStabilityTimers(previousStep.stepId);
@@ -13331,54 +13220,36 @@ var DAP = (function (exports) {
      * CRITICAL FIX 3: Clear input stability timers for a specific step
      */
     clearInputStabilityTimers(stepId) {
-      const timerId = this._inputStabilityTimers.get(stepId);
-      if (timerId) {
-        clearTimeout(timerId);
-        this._inputStabilityTimers.delete(stepId);
-      }
       this._lastInputValues.delete(stepId);
       this._inputStabilityChecks.delete(stepId);
     }
     /**
-     * Check if flow can resume after page change
-     */
-    checkFlowResumption() {
-      if (!this._state.flowInProgress || !this._currentFlow) return;
-      console.debug("[DAP] Checking if current step can resume after page change");
-      this.executeStep();
-    }
-    /**
-     * Check if current location matches step requirement
-     */
-    matchesLocation(elementLocation, context) {
-      if (!elementLocation) return true;
-      const normalizedRequired = elementLocation.replace(/^\/+/, "").toLowerCase();
-      const normalizedCurrent = (context.currentPath || "").replace(/^\/+/, "").toLowerCase();
-      const normalizedScreen = (context.screenId || "").replace(/^\/+/, "").toLowerCase();
-      return normalizedRequired === normalizedCurrent || normalizedRequired === normalizedScreen || normalizedRequired === "*";
-    }
-    /**
-     * Wait for element to exist in DOM
+     * Wait for element to exist in DOM.
+     * Returns a cancel function — call it to stop retrying (e.g. when the flow is aborted).
+     * Capped at MAX_ATTEMPTS to prevent infinite loops.
      */
     waitForElement(selector, callback) {
+      let cancelled = false;
+      let attempts = 0;
+      const MAX_ATTEMPTS = 300;
       const check = () => {
-        const element = resolveSelector(selector);
+        if (cancelled) return;
+        if (attempts >= MAX_ATTEMPTS) {
+          console.warn(`[DAP] waitForElement: gave up waiting for "${selector}" after 30 s`);
+          return;
+        }
+        attempts++;
+        const element = resolveSelectorWithPriority(selector);
         if (element) {
-          callback(element);
+          if (!cancelled) callback(element);
         } else {
           setTimeout(check, 100);
         }
       };
       check();
-    }
-    /**
-     * Check if current page location allows rule evaluation
-     */
-    isLocationValid(elementLocation) {
-      if (!elementLocation) return true;
-      const currentContext = this._locationService.getContext();
-      const currentPath = currentContext.currentPath;
-      return currentPath.includes(elementLocation) || elementLocation === "dashboard";
+      return () => {
+        cancelled = true;
+      };
     }
     /**
      * Get current flow state for debugging
@@ -13405,13 +13276,12 @@ var DAP = (function (exports) {
         activeStepTriggered: false,
         executionState: "TERMINATED",
         executionMode: "Linear",
-        triggeredSteps: /* @__PURE__ */ new Set()
+        triggeredSteps: /* @__PURE__ */ new Set(),
+        anyOrderStepInProgress: false,
+        inProgressSteps: /* @__PURE__ */ new Set()
       };
       this._currentFlow = null;
-      if (this._pageChangeUnsubscribe) {
-        this._pageChangeUnsubscribe();
-        this._pageChangeUnsubscribe = null;
-      }
+      this._completedMandatorySteps.clear();
       triggerManager.destroy();
       pageContextService.destroy();
       console.debug("[DAP] FlowEngine: Destroyed");
@@ -13420,11 +13290,10 @@ var DAP = (function (exports) {
      * Analyze flow page context to detect multi-page flows
      */
     analyzeFlowPageContext(flowData) {
-      console.log(`[DAP] \u{1F4C4} FLOW PAGE CONTEXT ANALYSIS: ${flowData.flowId}`);
-      console.log(`[DAP] ================================================================`);
+      console.debug(`[DAP] \u{1F4C4} FLOW PAGE CONTEXT ANALYSIS: ${flowData.flowId}`);
+      console.debug(`[DAP] ================================================================`);
       const currentPage = pageContextService.getCurrentContext();
       const selectors = /* @__PURE__ */ new Set();
-      const elementLocations = /* @__PURE__ */ new Set();
       let selectorMismatches = 0;
       let possibleMultiPage = false;
       for (const step of flowData.steps) {
@@ -13435,26 +13304,22 @@ var DAP = (function (exports) {
             }
           });
         }
-        if (step.uxExperience?.elementSelector) {
+        if (step.uxExperience?.elementSelector && step.uxExperience.elementSelector !== "NA") {
           selectors.add(step.uxExperience.elementSelector);
         }
         if (step.userInputSelector) {
           selectors.add(step.userInputSelector);
         }
-        if (step.uxExperience?.elementLocation) {
-          elementLocations.add(step.uxExperience.elementLocation);
-        }
       }
-      console.log(`[DAP] Total unique selectors in flow: ${selectors.size}`);
-      console.log(`[DAP] Element locations: ${Array.from(elementLocations).join(", ") || "none specified"}`);
+      console.debug(`[DAP] Total unique selectors in flow: ${selectors.size}`);
       for (const selector of selectors) {
         try {
-          const elements = resolveSelectorAll2(selector);
-          if (elements.length === 0) {
+          const el = resolveSelectorWithPriority(selector);
+          if (!el) {
             selectorMismatches++;
             console.warn(`[DAP] \u26A0\uFE0F Selector not found on current page: ${selector}`);
           } else {
-            console.debug(`[DAP] \u2705 Selector found (${elements.length} elements): ${selector}`);
+            console.debug(`[DAP] \u2705 Selector found: ${selector}`);
           }
         } catch (error) {
           selectorMismatches++;
@@ -13468,42 +13333,39 @@ var DAP = (function (exports) {
         console.warn(`[DAP] This suggests a multi-page flow or cross-page navigation issue`);
       }
       const executionMode = flowData.execution?.mode || "Linear";
-      console.log(`[DAP] Flow execution mode: ${executionMode}`);
+      console.debug(`[DAP] Flow execution mode: ${executionMode}`);
       if (possibleMultiPage && executionMode === "Linear") {
         console.warn(`[DAP] \u{1F4A1} Recommendation: Consider enabling multiPage support for this flow`);
         console.warn(`[DAP] Some steps may wait indefinitely for elements on other pages`);
       }
-      console.log(`[DAP] Current page: ${currentPage?.pathname || "unknown"}`);
-      console.log(`[DAP] ================================================================`);
+      console.debug(`[DAP] Current page: ${currentPage?.pathname || "unknown"}`);
+      console.debug(`[DAP] ================================================================`);
     }
     /**
      * Analyze rule-based steps for page context issues
      */
     analyzeRuleStepsPageContext(ruleSteps) {
-      console.log(`[DAP] \u{1F916} RULE STEPS PAGE CONTEXT ANALYSIS`);
-      console.log(`[DAP] ================================================================`);
+      console.debug(`[DAP] \u{1F916} RULE STEPS PAGE CONTEXT ANALYSIS`);
+      console.debug(`[DAP] ================================================================`);
       pageContextService.getCurrentContext();
       for (const step of ruleSteps) {
-        console.log(`[DAP] Rule step ${step.stepId}:`);
+        console.debug(`[DAP] Rule step ${step.stepId}:`);
         const triggerSelectors = step.trigger?.conditions?.map((c) => c.selector).filter(Boolean) || [];
-        console.log(`[DAP]   Trigger selectors: ${triggerSelectors.length}`);
+        console.debug(`[DAP]   Trigger selectors: ${triggerSelectors.length}`);
         for (const selector of triggerSelectors) {
           if (selector) {
-            const elements = resolveSelectorAll2(selector);
-            if (elements.length === 0) {
-              console.error(`[DAP]   \u274C CRITICAL: Rule trigger selector not found: ${selector}`);
-              console.error(`[DAP]   This rule-based step will wait indefinitely!`);
+            const el = resolveSelectorWithPriority(selector);
+            if (!el) {
+              console.warn(`[DAP]   \u26A0\uFE0F Rule trigger selector not yet in DOM: ${selector} (may appear after navigation)`);
             } else {
               console.debug(`[DAP]   \u2705 Trigger selector found: ${selector}`);
             }
           }
         }
         if (step.userInputSelector) {
-          const inputElements = resolveSelectorAll2(step.userInputSelector);
-          if (inputElements.length === 0) {
-            console.error(`[DAP]   \u274C CRITICAL: Rule input selector not found: ${step.userInputSelector}`);
-            console.error(`[DAP]   Rule condition evaluation will fail!`);
-            console.error(`[DAP]   Possible cross-page navigation issue detected.`);
+          const inputEl = resolveSelectorWithPriority(step.userInputSelector);
+          if (!inputEl) {
+            console.warn(`[DAP]   \u26A0\uFE0F Rule input selector not yet in DOM: ${step.userInputSelector} (may appear after navigation)`);
           } else {
             console.debug(`[DAP]   \u2705 Input selector found: ${step.userInputSelector}`);
           }
@@ -13512,580 +13374,66 @@ var DAP = (function (exports) {
           for (let i = 0; i < step.conditionRuleBlocks.length; i++) {
             const ruleBlock = step.conditionRuleBlocks[i];
             if (ruleBlock.selector) {
-              const ruleElements = resolveSelectorAll2(ruleBlock.selector);
-              if (ruleElements.length === 0) {
-                console.warn(`[DAP]   \u26A0\uFE0F Rule block ${i} selector not found: ${ruleBlock.selector}`);
+              const rbEl = resolveSelectorWithPriority(ruleBlock.selector);
+              if (!rbEl) {
+                console.warn(`[DAP]   \u26A0\uFE0F Rule block ${i} selector not yet in DOM: ${ruleBlock.selector}`);
               }
             }
           }
         }
       }
-      console.log(`[DAP] ================================================================`);
+      console.debug(`[DAP] ================================================================`);
     }
     /**
      * Analyze and log trigger usage for the entire flow
      * This helps identify which steps use step-level vs element-level triggers
      */
     analyzeTriggerUsage(flowData) {
-      console.log(`[DAP] \u{1F4CA} TRIGGER USAGE ANALYSIS FOR FLOW: ${flowData.flowId}`);
-      console.log(`[DAP] ================================================================`);
+      console.debug(`[DAP] \u{1F4CA} TRIGGER USAGE ANALYSIS FOR FLOW: ${flowData.flowId}`);
+      console.debug(`[DAP] ================================================================`);
       let stepLevelCount = 0;
-      let elementLevelCount = 0;
       let noTriggerCount = 0;
       let ruleBasedCount = 0;
       for (const step of flowData.steps) {
         const hasStepTrigger = step.trigger && step.trigger.conditions && step.trigger.conditions.length > 0;
-        const hasElementTrigger = step.uxExperience?.elementTrigger;
-        const hasRuleBlocks = step.conditionRuleBlocks && step.conditionRuleBlocks.length > 0;
+        const hasRuleBlocks = step.conditionRuleBlocks && step.conditionRuleBlocks.length > 0 || step.rules?.length > 0;
+        if (hasRuleBlocks) {
+          ruleBasedCount++;
+        }
         if (hasStepTrigger) {
           stepLevelCount++;
           const triggerType = `${step.trigger?.conditions?.[0]?.kind}-${step.trigger?.conditions?.[0]?.event}`;
           if (hasRuleBlocks) {
-            console.log(`[DAP] \u{1F916} Step ${step.stepId}: STEP-LEVEL trigger (${triggerType}) + RULE-BASED decision`);
-            ruleBasedCount++;
+            console.debug(`[DAP] \u{1F916} Step ${step.stepId}: STEP-LEVEL trigger (${triggerType}) + RULE-BASED decision`);
           } else {
-            console.log(`[DAP] \u2705 Step ${step.stepId}: STEP-LEVEL trigger (${triggerType}) + UX experience`);
+            console.debug(`[DAP] \u2705 Step ${step.stepId}: STEP-LEVEL trigger (${triggerType}) + UX experience`);
           }
-          if (hasElementTrigger) {
-            console.log(`[DAP]    \u2514\u2500\u2500 \u26A0\uFE0F  elementTrigger "${step.uxExperience?.elementTrigger}" will be IGNORED`);
-          }
-        } else if (hasElementTrigger) {
-          elementLevelCount++;
-          console.warn(`[DAP] \u26A0\uFE0F  Step ${step.stepId}: ELEMENT-LEVEL trigger "${step.uxExperience?.elementTrigger}" (LEGACY)`);
-          console.warn(`[DAP]    \u2514\u2500\u2500 \u{1F6A8} This will BREAK when element-level triggers are removed!`);
+        } else if (hasRuleBlocks && step.userInputSelector) {
+          stepLevelCount++;
+          console.debug(`[DAP] \u{1F916} Step ${step.stepId}: INPUT-BASED trigger (via ${step.userInputSelector}) + RULE-BASED decision`);
         } else {
           noTriggerCount++;
           console.error(`[DAP] \u274C Step ${step.stepId}: NO TRIGGER - will execute immediately`);
         }
       }
-      console.log(`[DAP] ================================================================`);
-      console.log(`[DAP] \u{1F4CA} SUMMARY:`);
-      console.log(`[DAP]    \u2705 Step-level triggers: ${stepLevelCount}`);
-      console.log(`[DAP]    \u26A0\uFE0F  Element-level triggers: ${elementLevelCount}`);
-      console.log(`[DAP]    \u274C No triggers: ${noTriggerCount}`);
-      console.log(`[DAP]    \u{1F916} Rule-based decision steps: ${ruleBasedCount}`);
-      console.log(`[DAP] ================================================================`);
-      if (elementLevelCount > 0) {
-        console.warn(`[DAP] \u{1F6A8} WARNING: ${elementLevelCount} steps use element-level triggers!`);
-        console.warn(`[DAP]    These will BREAK when element-level support is removed.`);
-        console.warn(`[DAP]    Please migrate to step-level triggers.`);
-      }
+      console.debug(`[DAP] ================================================================`);
+      console.debug(`[DAP] \u{1F4CA} SUMMARY:`);
+      console.debug(`[DAP]    \u2705 Step-level triggers: ${stepLevelCount}`);
+      console.debug(`[DAP]    \u274C No triggers: ${noTriggerCount}`);
+      console.debug(`[DAP]    \u{1F916} Rule-based decision steps: ${ruleBasedCount}`);
+      console.debug(`[DAP] ================================================================`);
       if (noTriggerCount > 0) {
         console.error(`[DAP] \u{1F6A8} ERROR: ${noTriggerCount} steps have no triggers!`);
         console.error(`[DAP]    These steps will execute immediately without user interaction.`);
       }
       if (stepLevelCount === flowData.steps.length) {
-        console.log(`[DAP] \u{1F389} PERFECT! All steps use step-level triggers. Ready for element-level trigger removal.`);
+        console.debug(`[DAP] \u{1F389} PERFECT! All steps use step-level triggers.`);
       }
     }
   };
   var flowEngine = FlowEngine.getInstance();
 
-  // src/utils/validationInterceptor.ts
-  var _ValidationInterceptor = class _ValidationInterceptor {
-    constructor() {
-      this.observerRef = null;
-      this.isInitialized = false;
-    }
-    static getInstance() {
-      if (!_ValidationInterceptor.instance) {
-        _ValidationInterceptor.instance = new _ValidationInterceptor();
-      }
-      return _ValidationInterceptor.instance;
-    }
-    /**
-     * Inject CSS styles for validation tooltips and error states
-     */
-    injectValidationStyles() {
-      const existingStyles = document.querySelector("#dap-validation-styles");
-      if (existingStyles) return;
-      const style = document.createElement("style");
-      style.id = "dap-validation-styles";
-      style.textContent = `
-      /* Validation error state for inputs */
-      .dap-validation-error {
-        border-color: #ef4444 !important;
-        box-shadow: 0 0 0 1px #ef4444 !important;
-      }
-      
-      /* Fallback validation tooltip */
-      .dap-validation-tooltip-fallback {
-        position: absolute !important;
-        background: #ef4444 !important;
-        color: white !important;
-        padding: 8px 12px !important;
-        border-radius: 4px !important;
-        font-size: 14px !important;
-        font-family: system-ui, -apple-system, sans-serif !important;
-        z-index: 10000 !important;
-        max-width: 200px !important;
-        word-wrap: break-word !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
-        pointer-events: none !important;
-        transform: translateY(-2px) !important;
-      }
-      
-      .dap-validation-tooltip-fallback::before {
-        content: '';
-        position: absolute;
-        top: 100%;
-        left: 12px;
-        width: 0;
-        height: 0;
-        border-left: 6px solid transparent;
-        border-right: 6px solid transparent;
-        border-top: 6px solid #ef4444;
-      }
-      
-      /* Hide native validation bubbles */
-      input:invalid {
-        box-shadow: none !important;
-      }
-      
-      /* Ensure tooltips appear above everything */
-      .dap-tip-layer {
-        z-index: 10001 !important;
-      }
-    `;
-      document.head.appendChild(style);
-    }
-    /**
-     * Initialize validation interception for the entire page
-     */
-    initialize() {
-      if (this.isInitialized) {
-        console.debug("[DAP] Validation interceptor already initialized");
-        return;
-      }
-      console.debug("[DAP] Initializing validation interceptor for DAP tooltips");
-      this.injectValidationStyles();
-      this.setupDAPTooltipTriggers();
-      this.isInitialized = true;
-      console.debug("[DAP] Validation interceptor initialized successfully");
-    }
-    /**
-     * Set up DAP tooltip triggers for validation errors
-     */
-    setupDAPTooltipTriggers() {
-      document.addEventListener("submit", async (event) => {
-        const form = event.target;
-        if (form.tagName === "FORM") {
-          const firstInvalidInput = this.validateForm(form);
-          if (firstInvalidInput) {
-            event.preventDefault();
-            firstInvalidInput.focus();
-            await this.triggerDAPValidation(firstInvalidInput);
-          }
-        }
-      }, { passive: false });
-      document.addEventListener("blur", async (event) => {
-        const input = event.target;
-        if (input && (input.tagName === "INPUT" || input.tagName === "TEXTAREA") && input.hasAttribute("required")) {
-          if (!this.isInputValid(input)) {
-            await this.triggerDAPValidation(input);
-          }
-        }
-      }, { capture: true });
-    }
-    /**
-     * Disable native validation on all forms in the document
-     */
-    disableNativeValidationOnForms() {
-      const forms = document.querySelectorAll("form");
-      forms.forEach((form) => {
-        this.disableFormValidation(form);
-      });
-      if (forms.length > 0) {
-        console.debug("[DAP] Browser validation suppressed on", forms.length, "forms");
-      }
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", () => {
-          setTimeout(() => {
-            const newForms = document.querySelectorAll("form:not([novalidate])");
-            newForms.forEach((form) => {
-              this.disableFormValidation(form);
-            });
-            if (newForms.length > 0) {
-              console.debug("[DAP] Additional forms processed after DOM load:", newForms.length);
-            }
-          }, 100);
-        });
-      }
-    }
-    /**
-     * Disable native validation on a specific form
-     */
-    disableFormValidation(form) {
-      form.setAttribute("novalidate", "");
-      form.noValidate = true;
-      form.addEventListener("submit", this.handleFormSubmit.bind(this), { capture: true, passive: false });
-      const inputs = form.querySelectorAll("input, select, textarea");
-      inputs.forEach((input) => {
-        this.setupInputValidation(input);
-      });
-      console.debug("[DAP] Form validation disabled for:", form);
-    }
-    /**
-     * Set up validation listeners on individual inputs
-     */
-    setupInputValidation(input) {
-      input.addEventListener("invalid", this.preventBrowserTooltip.bind(this), { capture: true, passive: false });
-      if ("setCustomValidity" in input) {
-        input.setCustomValidity("");
-      }
-      input.addEventListener("blur", this.validateInput.bind(this));
-      input.addEventListener("input", this.clearValidationErrors.bind(this));
-      input.addEventListener("focus", (event) => {
-        const inputElement = event.target;
-        if ("setCustomValidity" in inputElement) {
-          inputElement.setCustomValidity("");
-        }
-      });
-      console.debug("[DAP] Input validation setup for:", input);
-    }
-    /**
-     * Prevent browser validation tooltips from appearing
-     */
-    preventBrowserTooltip(event) {
-      console.debug("[DAP] Browser validation suppressed for element:", event.target);
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      const target = event.target;
-      if (target && "setCustomValidity" in target) {
-        target.setCustomValidity("");
-      }
-      this.triggerDAPValidation(event.target);
-    }
-    /**
-     * Handle form submission with custom validation
-     */
-    handleFormSubmit(event) {
-      const form = event.target;
-      const firstInvalidInput = this.validateForm(form);
-      if (firstInvalidInput) {
-        event.preventDefault();
-        event.stopPropagation();
-        firstInvalidInput.focus();
-        this.triggerDAPValidation(firstInvalidInput);
-      }
-    }
-    /**
-     * Validate a form and return first invalid input
-     */
-    validateForm(form) {
-      const inputs = form.querySelectorAll("input[required], select[required], textarea[required]");
-      for (let i = 0; i < inputs.length; i++) {
-        const element = inputs[i];
-        if (!this.isInputValid(element)) {
-          return element;
-        }
-      }
-      return null;
-    }
-    /**
-     * Validate individual input
-     */
-    validateInput(event) {
-      const input = event.target;
-      if (!this.isInputValid(input)) {
-        this.triggerDAPValidation(input);
-      } else {
-        this.clearValidationErrors(event);
-      }
-    }
-    /**
-     * Check if an input is valid
-     */
-    isInputValid(input) {
-      if (input.hasAttribute("required") && !input.value.trim()) {
-        return false;
-      }
-      if (input.type === "email" && input.value) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(input.value);
-      }
-      if (input.type === "url" && input.value) {
-        try {
-          new URL(input.value);
-          return true;
-        } catch {
-          return false;
-        }
-      }
-      return true;
-    }
-    /**
-     * Trigger DAP validation tooltip
-     */
-    async triggerDAPValidation(input) {
-      this.clearAllTooltips();
-      console.debug("[DAP] DAP validation tooltip triggered for:", input);
-      const validationMessage = this.getValidationMessage(input);
-      const validationExperience = {
-        elementSelector: input.id ? `#${input.id}` : this.generateSelector(input),
-        elementTrigger: "validation_error",
-        elementLocation: window.location.pathname,
-        content: {
-          text: validationMessage,
-          placement: "top"
-        }
-      };
-      input.classList.add("dap-validation-error");
-      await this.showDAPTooltip(input, validationExperience);
-    }
-    /**
-     * Get appropriate validation message for an input
-     */
-    getValidationMessage(input) {
-      const inputElement = input;
-      const fieldName = this.getFieldName(input);
-      if (inputElement.hasAttribute("required") && !inputElement.value.trim()) {
-        return `Please enter ${fieldName}`;
-      }
-      if (inputElement.type === "email" && inputElement.value) {
-        return "Please enter a valid email address";
-      }
-      if (inputElement.type === "url" && inputElement.value) {
-        return "Please enter a valid URL";
-      }
-      return `Please check the ${fieldName} field`;
-    }
-    /**
-     * Get user-friendly field name
-     */
-    getFieldName(input) {
-      const label = document.querySelector(`label[for="${input.id}"]`);
-      if (label) {
-        return label.textContent?.trim().replace(":", "") || "field";
-      }
-      const placeholder = input.placeholder;
-      if (placeholder) {
-        return placeholder;
-      }
-      const name = input.name;
-      if (name) {
-        return name.replace(/[_-]/g, " ").toLowerCase();
-      }
-      return "field";
-    }
-    /**
-     * Generate CSS selector for element
-     */
-    generateSelector(element) {
-      if (element.id) {
-        return `#${element.id}`;
-      }
-      if (element.className) {
-        return `.${element.className.split(" ")[0]}`;
-      }
-      return element.tagName.toLowerCase();
-    }
-    /**
-     * Show DAP tooltip for validation
-     */
-    async showDAPTooltip(element, experience) {
-      try {
-        const { renderDirectTooltip: renderDirectTooltip2 } = await Promise.resolve().then(() => (init_tooltip(), tooltip_exports));
-        const tooltipPayload = {
-          targetSelector: experience.elementSelector,
-          text: experience.content.text,
-          placement: experience.content.placement || "top",
-          trigger: "click"
-          // Use click trigger for validation tooltips
-        };
-        console.debug("[DAP] Showing DAP validation tooltip:", tooltipPayload);
-        await renderDirectTooltip2(tooltipPayload);
-      } catch (error) {
-        console.error("[DAP] Failed to load tooltip renderer:", error);
-        console.debug("[DAP] Using enhanced fallback tooltip");
-        this.showDAPStyledFallbackTooltip(element, experience.content.text);
-      }
-    }
-    /**
-     * Enhanced fallback tooltip with DAP styling
-     */
-    showDAPStyledFallbackTooltip(element, message) {
-      this.clearAllTooltips();
-      const tooltipWrapper = document.createElement("div");
-      tooltipWrapper.className = "dap-validation-tooltip-wrap";
-      tooltipWrapper.style.cssText = `
-      position: absolute;
-      z-index: 10001;
-      pointer-events: none;
-    `;
-      const tooltip = document.createElement("div");
-      tooltip.className = "dap-validation-tooltip-bubble";
-      tooltip.style.cssText = `
-      background: #2563eb;
-      color: white;
-      padding: 12px 16px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-family: system-ui, -apple-system, sans-serif;
-      max-width: 280px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      position: relative;
-      word-wrap: break-word;
-      line-height: 1.4;
-    `;
-      tooltip.textContent = message;
-      const arrow = document.createElement("div");
-      arrow.className = "dap-validation-tooltip-arrow";
-      arrow.style.cssText = `
-      position: absolute;
-      top: 100%;
-      left: 20px;
-      width: 0;
-      height: 0;
-      border-left: 8px solid transparent;
-      border-right: 8px solid transparent;
-      border-top: 8px solid #2563eb;
-    `;
-      tooltip.appendChild(arrow);
-      tooltipWrapper.appendChild(tooltip);
-      const rect = element.getBoundingClientRect();
-      const tooltipTop = Math.max(10, rect.top - 50 + window.scrollY);
-      const tooltipLeft = Math.max(10, Math.min(rect.left + window.scrollX, window.innerWidth - 300));
-      tooltipWrapper.style.top = `${tooltipTop}px`;
-      tooltipWrapper.style.left = `${tooltipLeft}px`;
-      console.debug("[DAP] DAP-styled fallback tooltip positioned at:", tooltipTop, tooltipLeft);
-      document.body.appendChild(tooltipWrapper);
-      setTimeout(() => {
-        if (tooltipWrapper.parentNode) {
-          tooltipWrapper.parentNode.removeChild(tooltipWrapper);
-        }
-      }, 4e3);
-    }
-    /**
-     * Clear all validation tooltips (both DAP and fallback)
-     */
-    clearAllTooltips() {
-      const dapTooltips = document.querySelectorAll(".dap-tip-layer, .dap-tooltip-wrap");
-      dapTooltips.forEach((tooltip) => tooltip.remove());
-      const fallbackTooltips = document.querySelectorAll(".dap-validation-tooltip-fallback, .dap-validation-tooltip-wrap");
-      fallbackTooltips.forEach((tooltip) => tooltip.remove());
-      console.debug("[DAP] All validation tooltips cleared");
-    }
-    /**
-     * Fallback tooltip if DAP tooltip fails (DEPRECATED - use DAP styled version)
-     */
-    showFallbackTooltip(element, message) {
-      this.clearFallbackTooltips();
-      const tooltip = document.createElement("div");
-      tooltip.className = "dap-validation-tooltip-fallback";
-      tooltip.textContent = message;
-      tooltip.style.cssText = `
-      position: absolute;
-      background: #ef4444;
-      color: white;
-      padding: 8px 12px;
-      border-radius: 4px;
-      font-size: 14px;
-      z-index: 10000;
-      max-width: 200px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      pointer-events: none;
-    `;
-      const rect = element.getBoundingClientRect();
-      const tooltipTop = Math.max(10, rect.top - 35 + window.scrollY);
-      const tooltipLeft = Math.max(10, Math.min(rect.left + window.scrollX, window.innerWidth - 220));
-      tooltip.style.top = `${tooltipTop}px`;
-      tooltip.style.left = `${tooltipLeft}px`;
-      console.debug("[DAP] Fallback tooltip positioned at:", tooltipTop, tooltipLeft);
-      document.body.appendChild(tooltip);
-      setTimeout(() => {
-        if (tooltip.parentNode) {
-          tooltip.parentNode.removeChild(tooltip);
-        }
-      }, 3e3);
-    }
-    /**
-     * Clear validation errors when user starts typing
-     */
-    clearValidationErrors(event) {
-      const input = event.target;
-      input.classList.remove("dap-validation-error");
-      this.clearAllTooltips();
-    }
-    /**
-     * Clear fallback tooltips
-     */
-    clearFallbackTooltips() {
-      const tooltips = document.querySelectorAll(".dap-validation-tooltip-fallback");
-      tooltips.forEach((tooltip) => tooltip.remove());
-    }
-    /**
-     * Dismiss DAP tooltips
-     */
-    dismissDAPTooltips() {
-      console.debug("[DAP] DAP tooltip dismissed");
-      const activeTooltips = document.querySelectorAll(".dap-tooltip-wrap");
-      activeTooltips.forEach((tooltip) => {
-        const closeButton = tooltip.querySelector(".dap-tooltip-close");
-        if (closeButton) {
-          closeButton.click();
-        } else {
-          tooltip.remove();
-        }
-      });
-    }
-    /**
-     * Set up observer for dynamically added forms
-     */
-    setupFormObserver() {
-      this.observerRef = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              const element = node;
-              if (element.tagName === "FORM") {
-                this.disableFormValidation(element);
-              }
-              const forms = element.querySelectorAll?.("form");
-              forms?.forEach((form) => {
-                this.disableFormValidation(form);
-              });
-            }
-          });
-        });
-      });
-      this.observerRef.observe(document.body, {
-        childList: true,
-        subtree: true
-      });
-    }
-    /**
-     * Set up additional validation listeners for enhanced coverage
-     */
-    setupValidationListeners() {
-      window.addEventListener("invalid", this.preventBrowserTooltip.bind(this), { capture: true, passive: false });
-      document.addEventListener("focusin", (event) => {
-        const input = event.target;
-        if (input.tagName === "INPUT" || input.tagName === "TEXTAREA" || input.tagName === "SELECT") {
-          input.setCustomValidity("");
-        }
-      }, { capture: true });
-    }
-    /**
-     * Cleanup and destroy the interceptor
-     */
-    destroy() {
-      if (this.observerRef) {
-        this.observerRef.disconnect();
-        this.observerRef = null;
-      }
-      document.removeEventListener("invalid", this.preventBrowserTooltip.bind(this), true);
-      this.clearFallbackTooltips();
-      _ValidationInterceptor.instance = null;
-    }
-  };
-  _ValidationInterceptor.instance = null;
-  var ValidationInterceptor = _ValidationInterceptor;
-
   // src/index.ts
-  init_selectors();
-  var validationInterceptor = ValidationInterceptor.getInstance();
   registerModalSequence();
   registerModal();
   registerTooltip();
@@ -14093,7 +13441,6 @@ var DAP = (function (exports) {
   registerPopover();
   registerBeacon();
   registerBanner();
-  register("alert", getRenderer("banner"));
   registerHotspots();
   registerHotspotTour();
   registerTaskList();
@@ -14103,9 +13450,29 @@ var DAP = (function (exports) {
   var _flowInitializationPending = false;
   var _pendingFlowIds = [];
   var _registeredFlows = /* @__PURE__ */ new Map();
+  var _previewSessionId = null;
   async function init(opts) {
     const { configUrl, debug, screenId, user } = opts || {};
     window.__DAP_DEBUG__ = !!debug;
+    if (debug && typeof window !== "undefined") {
+      Object.assign(window.DAP, {
+        getFlowState: () => flowEngine.getState(),
+        getUserState: () => userContextService.getDebugState(),
+        testFlow: async (flowId) => {
+          if (!_dapConfig) throw new Error("SDK not initialized");
+          const previewMode2 = detectPreviewMode();
+          const previewSessionId = previewMode2.isPreviewMode ? previewMode2.previewSessionId : null;
+          const rawFlowData = await fetchFlowById(_dapConfig, location.origin, flowId, previewSessionId);
+          const flowData = normalizeRawFlowData(rawFlowData, flowId);
+          return flowEngine.startFlow(flowData);
+        },
+        renderModal,
+        resolveSelector,
+        locationContext: LocationContextService.getInstance(),
+        userContext: userContextService,
+        flowEngine
+      });
+    }
     if (!configUrl) throw new Error("DAP.init: configUrl is required");
     const pathname = location.pathname.replace(/^\/+/, "");
     const cfg = await loadConfig(configUrl);
@@ -14114,16 +13481,25 @@ var DAP = (function (exports) {
     _dapConfig = cfg;
     if (user) {
       userContextService.setUser(user);
-      log("User context set during init:", user.id);
+      const resolvedUser = userContextService.getUser();
+      log("User context set during init:", resolvedUser?.id || "unknown");
     }
     log("Loaded config", { cfg, hostBase });
-    validationInterceptor.initialize();
     const locationService = LocationContextService.getInstance();
     locationService.setContext({
       currentPath: pathname,
       screenId: screenId || pathname
     });
     log("Location context set", locationService.getContext());
+    const previewMode = detectPreviewMode();
+    if (previewMode.isPreviewMode && previewMode.previewSessionId && previewMode.flowId) {
+      log("Preview mode detected, flowId:", previewMode.flowId, "sessionId:", previewMode.previewSessionId);
+      _previewSessionId = previewMode.previewSessionId;
+      _pendingFlowIds = [previewMode.flowId];
+      await initializeFlowsWhenReady();
+      return;
+    }
+    _previewSessionId = null;
     const ids = await fetchVisibleFlowIds(cfg, hostBase, pathname);
     log("Visible flow IDs", ids);
     if (ids.length === 0) {
@@ -14132,11 +13508,6 @@ var DAP = (function (exports) {
     }
     _pendingFlowIds = ids;
     await initializeFlowsWhenReady();
-  }
-  async function loadConfig(configUrl) {
-    const res = await fetch(configUrl);
-    if (!res.ok) throw new Error(`Failed to load config: ${res.status}`);
-    return res.json();
   }
   async function initializeFlowsWhenReady() {
     if (_flowInitializationPending) {
@@ -14147,6 +13518,7 @@ var DAP = (function (exports) {
     await waitForDOMReady();
     if (!shouldInitializeFlows()) {
       log("Flow initialization deferred - waiting for user context");
+      _flowInitializationPending = false;
       return;
     }
     await startPendingFlows();
@@ -14154,7 +13526,7 @@ var DAP = (function (exports) {
   async function waitForDOMReady() {
     return new Promise((resolve) => {
       if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", () => resolve());
+        document.addEventListener("DOMContentLoaded", () => resolve(), { once: true });
       } else {
         resolve();
       }
@@ -14174,37 +13546,82 @@ var DAP = (function (exports) {
       _flowInitializationPending = false;
       return;
     }
-    log(`Starting ${_pendingFlowIds.length} pending flows`);
-    for (const flowObj of _pendingFlowIds) {
-      try {
-        const flowId = typeof flowObj === "object" ? flowObj.flowId || flowObj.id : flowObj;
-        log(`Processing flow: ${flowId}`);
-        let rawFlowData;
-        if (typeof flowObj === "object" && Array.isArray(flowObj.steps) && flowObj.steps.length > 0) {
-          log(`Using pre-loaded flow data for: ${flowId}`);
-          rawFlowData = flowObj;
-        } else {
-          log(`Fetching flow data for: ${flowId}`);
-          rawFlowData = await fetchFlowById(_dapConfig, location.origin, flowId);
-        }
-        const flowData = {
-          flowId: rawFlowData.flowId || rawFlowData.id || flowId,
-          flowName: rawFlowData.flowName || rawFlowData.name || flowId,
-          steps: rawFlowData.steps || []
-        };
-        log("Starting flow with engine:", flowData);
-        await flowEngine.startFlow(flowData);
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      } catch (err) {
-        console.error(`[DAP] Failed to start flow`, err);
+    const queue = [..._pendingFlowIds];
+    log(`Processing flow queue: [${queue.join(", ")}]`);
+    let resolveCurrentFlow = null;
+    flowEngine.setOnFlowEndCallback((_flowId, _reason) => {
+      log(`Flow ended (${_reason}): ${_flowId}`);
+      if (resolveCurrentFlow) {
+        const cb = resolveCurrentFlow;
+        resolveCurrentFlow = null;
+        cb();
       }
+    });
+    for (const flowId of queue) {
+      if (!_dapConfig) break;
+      let rawFlowData;
+      try {
+        rawFlowData = await fetchFlowById(_dapConfig, location.origin, flowId, _previewSessionId ?? void 0);
+      } catch (err) {
+        console.error(`[DAP] Failed to fetch flow ${flowId}:`, err);
+        continue;
+      }
+      if (!rawFlowData) {
+        console.error("[DAP] Failed to resolve flow data for flow ID:", flowId);
+        continue;
+      }
+      const flowData = normalizeRawFlowData(rawFlowData, flowId);
+      log(`Starting flow ${flowId} (${queue.indexOf(flowId) + 1}/${queue.length})`);
+      await new Promise((resolve) => {
+        resolveCurrentFlow = resolve;
+        flowEngine.startFlow(flowData).catch((err) => {
+          console.error(`[DAP] Error starting flow ${flowId}:`, err);
+          resolve();
+        });
+      });
     }
+    flowEngine.setOnFlowEndCallback(() => {
+    });
     _flowInitializationPending = false;
   }
-  function setUser(user) {
+  function normalizeRawFlowData(rawFlowData, flowId) {
+    const steps = (Array.isArray(rawFlowData.steps) ? rawFlowData.steps : null) || (Array.isArray(rawFlowData.actions) ? rawFlowData.actions : null) || (Array.isArray(rawFlowData.actionGroups) ? rawFlowData.actionGroups : null) || [];
+    const frequency = rawFlowData.execution?.frequency || rawFlowData.frequency || {
+      // Default to 'Always' (no throttling) so flows without explicit frequency config
+      // run on every page visit as intended. Using 'Daily' here was silently throttling them.
+      type: rawFlowData.frequencyType || "Always",
+      maxRuns: rawFlowData.maxRuns || 0
+    };
+    return {
+      flowId: rawFlowData.flowId || rawFlowData.id || flowId,
+      flowName: rawFlowData.flowName || rawFlowData.name || flowId,
+      steps,
+      execution: {
+        mode: rawFlowData.execution?.mode || rawFlowData.executionMode || "Linear",
+        multiPage: rawFlowData.execution?.multiPage !== void 0 ? rawFlowData.execution.multiPage : !!rawFlowData.isMultiPage,
+        frequency
+      }
+    };
+  }
+  async function setUser(user) {
+    const previousUserId = userContextService.getAnalyticsContext().userId;
     userContextService.setUser(user);
+    const currentUserId = userContextService.getAnalyticsContext().userId;
+    log(`[DAP] setUser called. prevId: ${previousUserId}, currId: ${currentUserId}`);
+    if (_dapConfig && (previousUserId !== currentUserId || _pendingFlowIds.length === 0)) {
+      log("User changed or no flows available - re-fetching visible flows...");
+      const pathname = location.pathname.replace(/^\/+/, "");
+      const hostBase = location.origin;
+      try {
+        const ids = await fetchVisibleFlowIds(_dapConfig, hostBase, pathname);
+        _pendingFlowIds = ids;
+        log("Updated visible flow IDs for user:", ids);
+      } catch (err) {
+        log("Error re-fetching flows in setUser:", err);
+      }
+    }
     if (_pendingFlowIds.length > 0 && !_flowInitializationPending) {
-      log("User context set - starting pending flows");
+      log("Starting flows after user context change");
       initializeFlowsWhenReady();
     }
   }
@@ -14217,8 +13634,27 @@ var DAP = (function (exports) {
   function clearUser() {
     userContextService.clearUser();
   }
-  function runModalSequence() {
-    console.warn("[DAP] runModalSequence is deprecated, flows are managed by FlowEngine");
+  function resetFlowRuns(flowId) {
+    try {
+      if (flowId) {
+        localStorage.removeItem(`dap_flow_runs_${flowId}`);
+        localStorage.removeItem(`dap_flow_completed_${flowId}`);
+        localStorage.removeItem(`dap_flow_last_run_${flowId}`);
+        console.debug(`[DAP] Flow run count reset for: ${flowId}`);
+      } else {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith("dap_flow_runs_") || key.startsWith("dap_flow_completed_") || key.startsWith("dap_flow_last_run_"))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+        console.debug(`[DAP] All flow run counts reset (${keysToRemove.length} keys cleared)`);
+      }
+    } catch (error) {
+      console.error("[DAP] Error resetting flow run counts:", error);
+    }
   }
   async function executeFlow(flow) {
     if (!flow || !flow.id || !flow.steps) {
@@ -14230,20 +13666,39 @@ var DAP = (function (exports) {
       steps: flow.steps.map((step, index) => ({
         stepId: step.id || `step-${index + 1}`,
         stepOrder: index + 1,
+        stepType: "Optional",
+        // default for ad-hoc flows
         uxExperience: {
           uxExperienceType: step.type,
           elementSelector: step.trigger?.selector,
-          elementTrigger: step.trigger?.type || "immediate",
-          elementLocation: step.trigger?.placement || "auto",
           content: step.content
         }
-      }))
+      })),
+      execution: flow.execution ? {
+        mode: flow.execution.mode,
+        multiPage: flow.execution.multiPage,
+        frequency: flow.execution.frequency ? {
+          type: flow.execution.frequency.type ?? "OneTime",
+          maxRuns: flow.execution.frequency.maxRuns ?? 1
+        } : void 0
+      } : flow.executionMode ? {
+        mode: flow.executionMode,
+        multiPage: flow.isMultiPage
+      } : void 0
     };
     log("Executing custom flow:", normalizedFlow);
     return flowEngine.startFlow(normalizedFlow);
   }
+  var MAX_REGISTERED_FLOWS = 50;
   function registerFlow(flowData) {
     _registeredFlows.set(flowData.flowId, flowData);
+    if (_registeredFlows.size > MAX_REGISTERED_FLOWS) {
+      const oldestKey = _registeredFlows.keys().next().value;
+      if (oldestKey !== void 0) {
+        _registeredFlows.delete(oldestKey);
+        log(`_registeredFlows cap reached \u2014 evicted oldest flow: ${oldestKey}`);
+      }
+    }
     log("Flow registered:", flowData.flowId);
   }
   async function startFlow(flowId) {
@@ -14255,69 +13710,43 @@ var DAP = (function (exports) {
     if (!_dapConfig) {
       throw new Error("SDK not initialized. Call init() first or register the flow using registerFlow()");
     }
+    const previewMode = detectPreviewMode();
+    const previewSessionId = previewMode.isPreviewMode ? previewMode.previewSessionId : null;
     try {
-      const rawFlowData = await fetchFlowById(_dapConfig, location.origin, flowId);
-      const flowData = {
-        flowId: rawFlowData.flowId || rawFlowData.id || flowId,
-        flowName: rawFlowData.flowName || rawFlowData.name || flowId,
-        steps: rawFlowData.steps || []
-      };
+      const rawFlowData = await fetchFlowById(_dapConfig, location.origin, flowId, previewSessionId);
+      if (!rawFlowData) {
+        throw new Error(`Flow data not found for ID: ${flowId}`);
+      }
+      const flowData = normalizeRawFlowData(rawFlowData, flowId);
       log("Starting flow from backend:", flowId);
       return flowEngine.startFlow(flowData);
     } catch (error) {
-      throw new Error(`Flow not found: ${flowId}. Make sure to register it first or check if it exists in the backend.`);
+      const backendError = error.body ? ` (${error.body})` : error.message ? ` (${error.message})` : "";
+      throw new Error(`Flow not found: ${flowId}.${backendError} Make sure to register it first or check if it exists in the backend.`);
     }
   }
+  var dap = {
+    init,
+    setUser,
+    updateUser,
+    getUser,
+    clearUser,
+    registerFlow,
+    startFlow,
+    executeFlow,
+    resetFlowRuns
+  };
   if (typeof window !== "undefined") {
-    window.DAP = {
-      init,
-      executeFlow,
-      // Add executeFlow to public API
-      registerFlow,
-      // Add registerFlow to public API
-      startFlow,
-      // Add startFlow to public API
-      // User context APIs
-      setUser,
-      updateUser,
-      getUser,
-      clearUser,
-      // Core services
-      locationContext: LocationContextService.getInstance(),
-      userContext: userContextService,
-      flowEngine,
-      // Debug methods
-      getFlowState: () => flowEngine.getState(),
-      getUserState: () => userContextService.getDebugState(),
-      resolveSelector,
-      // Expose for testing
-      // Development utilities (only in debug mode)
-      ...typeof window.__DAP_DEBUG__ !== "undefined" && window.__DAP_DEBUG__ ? {
-        testFlow: async (flowId) => {
-          if (!_dapConfig) throw new Error("SDK not initialized");
-          const rawFlowData = await fetchFlowById(_dapConfig, location.origin, flowId);
-          const flowData = {
-            flowId: rawFlowData.flowId,
-            flowName: rawFlowData.flowName || flowId,
-            steps: rawFlowData.steps || []
-          };
-          return flowEngine.startFlow(flowData);
-        },
-        renderModal
-        // Add for testing
-      } : {
-        renderModal
-        // Always available for testing draggable functionality
-      }
-    };
+    window.DAP = dap;
   }
 
   exports.clearUser = clearUser;
+  exports.dap = dap;
   exports.executeFlow = executeFlow;
   exports.getUser = getUser;
   exports.init = init;
   exports.registerFlow = registerFlow;
-  exports.runModalSequence = runModalSequence;
+  exports.resetFlowRuns = resetFlowRuns;
   exports.setUser = setUser;
   exports.startFlow = startFlow;
   exports.updateUser = updateUser;
