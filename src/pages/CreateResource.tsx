@@ -3,25 +3,25 @@ import { useNavigate } from 'react-router-dom';
 import { X, Search, ChevronRight } from 'lucide-react';
 import { ServiceTile } from '@/components/ServiceTile';
 import { 
-  mockAzureServices, 
+  mockCogniorServices, 
   serviceCategories,
   trackEvent, 
   AnalyticsEvents,
-  AzureService 
+  CogniorService 
 } from '@/data/mockData';
 
 const CreateResource: React.FC = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [filteredServices, setFilteredServices] = useState<AzureService[]>(mockAzureServices);
+  const [filteredServices, setFilteredServices] = useState<CogniorService[]>(mockCogniorServices);
 
   useEffect(() => {
     trackEvent(AnalyticsEvents.MARKETPLACE_OPEN, { location: 'create_resource' });
   }, []);
 
   useEffect(() => {
-    let filtered = mockAzureServices;
+    let filtered = mockCogniorServices;
 
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(service => 
@@ -45,13 +45,13 @@ const CreateResource: React.FC = () => {
     navigate('/');
   };
 
-  const handleServiceClick = (service: AzureService) => {
+  const handleServiceClick = (service: CogniorService) => {
     trackEvent(AnalyticsEvents.MARKETPLACE_SERVICE_CLICK, {
       serviceId: service.id,
       serviceName: service.name,
       category: service.category
     });
-    navigate(`/create/${service.id}`);
+    navigate(`/create/${service.route}`);
   };
 
   const handleCategoryClick = (categoryId: string) => {
@@ -161,17 +161,17 @@ const CreateResource: React.FC = () => {
             <div className="text-sm text-foreground-secondary mb-4">
               Getting started? 
               <button className="text-primary hover:underline ml-1">
-                Try our Quickstart Center
+                Explore the Quickstart Center
               </button>
             </div>
 
             {/* AI suggestions */}
             <div className="flex flex-wrap gap-2 mb-6">
               <span className="px-3 py-1 bg-accent text-accent-foreground rounded-full text-sm cursor-pointer hover:bg-accent/80 transition-colors">
-                Help me compare Azure services for my workload
+                Help me compare Cognior services for my workload
               </span>
               <span className="px-3 py-1 bg-accent text-accent-foreground rounded-full text-sm cursor-pointer hover:bg-accent/80 transition-colors">
-                Design a new Azure workload
+                Design a new Cognior workload
               </span>
               <span className="px-3 py-1 bg-accent text-accent-foreground rounded-full text-sm cursor-pointer hover:bg-accent/80 transition-colors">
                 I need a new low-cost VM
@@ -183,8 +183,11 @@ const CreateResource: React.FC = () => {
           {popularServices.length > 0 && (
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-foreground">Popular Azure services</h2>
-                <button className="text-primary hover:underline text-sm">
+                <h2 className="text-lg font-semibold text-foreground">Popular Cognior services</h2>
+                <button
+                  className="text-primary hover:underline text-sm"
+                  onClick={() => navigate('/all-services')}
+                >
                   See more in All services
                 </button>
               </div>

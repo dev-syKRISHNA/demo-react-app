@@ -75,7 +75,7 @@ const navSections: NavSection[] = [
       { to: '/cost-management', icon: DollarSign, label: 'Cost Management + Billing' },
       { to: '/monitor', icon: BarChart3, label: 'Monitor' },
       { to: '/advisor', icon: Lightbulb, label: 'Advisor' },
-      { to: '/security-center', icon: Shield, label: 'Microsoft Defender for Cloud' }
+      { to: '/security-center', icon: Shield, label: 'Cognior Defender for Cloud' }
     ]
   }
 ];

@@ -2,11 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Azure Portal Design System - Cognior Portal */
+/* Cognior Portal Design System */
 
 @layer base {
   :root {
-    /* Azure Color Palette */
+    /* Cognior Color Palette */
     --azure-blue: 207 100% 50%;
     --azure-blue-dark: 207 100% 40%;
     --azure-blue-light: 207 100% 97%;
@@ -22,7 +22,7 @@
     --foreground-secondary: 210 11% 46%;
     --foreground-muted: 210 11% 71%;
     
-    /* Azure Brand Colors */
+    /* Cognior Brand Colors */
     --primary: 207 100% 50%;
     --primary-foreground: 0 0% 100%;
     --primary-hover: 207 100% 45%;
@@ -53,7 +53,7 @@
     --input-border: 210 16% 82%;
     --ring: 207 100% 50%;
     
-    /* Azure Portal Specific */
+    /* Cognior Portal Specific */
     --header-bg: 207 100% 50%;
     --header-text: 0 0% 100%;
     --nav-item: 210 11% 46%;
@@ -129,7 +129,7 @@
 }
 
 @layer components {
-  /* Azure Portal Service Tiles */
+  /* Cognior Portal Service Tiles */
   .service-tile {
     @apply bg-card border border-card-border rounded hover:bg-tile-hover transition-colors cursor-pointer p-4;
     box-shadow: var(--shadow-sm);
@@ -139,13 +139,13 @@
     box-shadow: var(--shadow-md);
   }
   
-  /* Azure Portal Blade Panel */
+  /* Cognior Portal Blade Panel */
   .blade-panel {
     @apply bg-blade-bg border-l border-blade-border;
     box-shadow: var(--shadow-blade);
   }
   
-  /* Azure Portal Table */
+  /* Cognior Portal Table */
   .azure-table {
     @apply w-full border-collapse;
   }
@@ -162,7 +162,7 @@
     @apply bg-table-row-hover;
   }
   
-  /* Azure Portal Buttons */
+  /* Cognior Portal Buttons */
   .azure-button-primary {
     @apply bg-primary text-primary-foreground hover:bg-primary-hover px-4 py-2 rounded text-sm font-medium transition-colors;
   }
@@ -171,7 +171,7 @@
     @apply bg-secondary text-secondary-foreground hover:bg-secondary-hover border border-border px-4 py-2 rounded text-sm font-medium transition-colors;
   }
   
-  /* Azure Portal Form Elements */
+  /* Cognior Portal Form Elements */
   .azure-input {
     @apply w-full px-3 py-2 border border-input-border rounded text-sm focus:ring-2 focus:ring-ring focus:border-ring outline-none transition-colors;
   }

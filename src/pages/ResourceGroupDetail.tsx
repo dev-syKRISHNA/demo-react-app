@@ -15,14 +15,13 @@ import {
   Tag
 } from 'lucide-react';
 import { Breadcrumb } from '@/components/Breadcrumb';
-import { 
-  mockResourceGroups, 
-  mockResources,
-  trackEvent, 
+import {
+  trackEvent,
   AnalyticsEvents,
   Resource,
   ResourceGroup
 } from '@/data/mockData';
+import { useAppStore } from '@/lib/store';
 
 const ResourceGroupDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,8 +29,10 @@ const ResourceGroupDetail: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   
-  const resourceGroup = mockResourceGroups.find(rg => rg.id === id);
-  const resources = mockResources.filter(r => r.resourceGroup === resourceGroup?.name);
+  const resourceGroups = useAppStore((s) => s.resourceGroups);
+  const allResources = useAppStore((s) => s.resources);
+  const resourceGroup = resourceGroups.find((rg) => rg.id === id);
+  const resources = allResources.filter((r) => r.resourceGroup === resourceGroup?.name);
 
   useEffect(() => {
     if (resourceGroup) {

@@ -1,4 +1,4 @@
-// Mock data for Cognior Portal (Azure Portal replica)
+// Mock data for Cognior Portal (Cognior Cloud replica)
 
 export interface Resource {
   id: string;
@@ -35,12 +35,13 @@ export interface Subscription {
 export interface ServiceCategory {
   id: string;
   name: string;
-  services: AzureService[];
+  services: CogniorService[];
 }
 
-export interface AzureService {
+export interface CogniorService {
   id: string;
   name: string;
+  route: string;
   description: string;
   category: string;
   icon: string;
@@ -60,7 +61,7 @@ export const mockSubscriptions: Subscription[] = [
   },
   {
     id: '2',
-    name: 'Azure for Students',
+    name: 'Cognior for Students',
     subscriptionId: '87654321-4321-4321-4321-210987654321',
     status: 'Active',
     directory: 'Default Directory (RAKS777G...)'
@@ -92,7 +93,7 @@ export const mockResourceGroups: ResourceGroup[] = [
   {
     id: '3',
     name: 'DefaultResourceGroup-EUS',
-    subscription: 'Azure for Students',
+    subscription: 'Cognior for Students',
     location: 'East US',
     resourceCount: 3,
     status: 'Active',
@@ -201,11 +202,23 @@ export const mockResources: Resource[] = [
   }
 ];
 
-// Mock Azure Services
-export const mockAzureServices: AzureService[] = [
+// Mock Cognior Services catalog
+export const mockCogniorServices: CogniorService[] = [
+  {
+    id: 'resource-group',
+    name: 'Resource group',
+    route: 'resource-group',
+    description: 'Logical container that holds Cognior resources.',
+    category: 'Management',
+    icon: 'Layers',
+    popular: true,
+    featured: true,
+    tags: ['governance', 'management', 'organization']
+  },
   {
     id: '1',
     name: 'Function App',
+    route: 'function-app',
     description: 'Create serverless functions',
     category: 'Compute',
     icon: 'Zap',
@@ -216,6 +229,7 @@ export const mockAzureServices: AzureService[] = [
   {
     id: '2',
     name: 'Web App',
+    route: 'web-app',
     description: 'Create and deploy web applications',
     category: 'Compute',
     icon: 'Globe',
@@ -226,6 +240,7 @@ export const mockAzureServices: AzureService[] = [
   {
     id: '3',
     name: 'Virtual network',
+    route: 'virtual-network',
     description: 'Create isolated network environments',
     category: 'Networking',
     icon: 'Network',
@@ -236,6 +251,7 @@ export const mockAzureServices: AzureService[] = [
   {
     id: '4',
     name: 'Key Vault',
+    route: 'key-vault',
     description: 'Secure key and secret management',
     category: 'Security',
     icon: 'Key',
@@ -246,6 +262,7 @@ export const mockAzureServices: AzureService[] = [
   {
     id: '5',
     name: 'Virtual machine',
+    route: 'virtual-machine',
     description: 'Create virtual machines in the cloud',
     category: 'Compute',
     icon: 'Monitor',
@@ -256,6 +273,7 @@ export const mockAzureServices: AzureService[] = [
   {
     id: '6',
     name: 'Storage account',
+    route: 'storage-account',
     description: 'Scalable cloud storage solution',
     category: 'Storage',
     icon: 'Database',
@@ -266,6 +284,7 @@ export const mockAzureServices: AzureService[] = [
   {
     id: '7',
     name: 'Data Factory',
+    route: 'data-factory',
     description: 'Data integration service',
     category: 'Analytics',
     icon: 'Factory',
@@ -276,6 +295,7 @@ export const mockAzureServices: AzureService[] = [
   {
     id: '8',
     name: 'Logic App',
+    route: 'logic-app',
     description: 'Workflow automation service',
     category: 'Integration',
     icon: 'GitBranch',
@@ -286,6 +306,7 @@ export const mockAzureServices: AzureService[] = [
   {
     id: '9',
     name: 'SQL Database',
+    route: 'sql-database',
     description: 'Managed SQL database service',
     category: 'Databases',
     icon: 'Database',
@@ -296,6 +317,7 @@ export const mockAzureServices: AzureService[] = [
   {
     id: '10',
     name: 'Cosmos DB',
+    route: 'cosmos-db',
     description: 'Globally distributed NoSQL database',
     category: 'Databases',
     icon: 'Database',
@@ -310,43 +332,48 @@ export const serviceCategories: ServiceCategory[] = [
   {
     id: 'compute',
     name: 'Compute',
-    services: mockAzureServices.filter(s => s.category === 'Compute')
+    services: mockCogniorServices.filter(s => s.category === 'Compute')
   },
   {
     id: 'networking',
     name: 'Networking',
-    services: mockAzureServices.filter(s => s.category === 'Networking')
+    services: mockCogniorServices.filter(s => s.category === 'Networking')
   },
   {
     id: 'storage',
     name: 'Storage',
-    services: mockAzureServices.filter(s => s.category === 'Storage')
+    services: mockCogniorServices.filter(s => s.category === 'Storage')
   },
   {
     id: 'databases',
     name: 'Databases',
-    services: mockAzureServices.filter(s => s.category === 'Databases')
+    services: mockCogniorServices.filter(s => s.category === 'Databases')
   },
   {
     id: 'analytics',
     name: 'Analytics',
-    services: mockAzureServices.filter(s => s.category === 'Analytics')
+    services: mockCogniorServices.filter(s => s.category === 'Analytics')
   },
   {
     id: 'security',
     name: 'Security',
-    services: mockAzureServices.filter(s => s.category === 'Security')
+    services: mockCogniorServices.filter(s => s.category === 'Security')
   },
   {
     id: 'integration',
     name: 'Integration',
-    services: mockAzureServices.filter(s => s.category === 'Integration')
+    services: mockCogniorServices.filter(s => s.category === 'Integration')
+  },
+  {
+    id: 'management',
+    name: 'Management',
+    services: mockCogniorServices.filter(s => s.category === 'Management')
   }
 ];
 
 // Popular services for quick access
-export const popularServices = mockAzureServices.filter(s => s.popular);
-export const featuredServices = mockAzureServices.filter(s => s.featured);
+export const popularServices = mockCogniorServices.filter(s => s.popular);
+export const featuredServices = mockCogniorServices.filter(s => s.featured);
 
 // Analytics Events for DAP instrumentation
 export const trackEvent = (eventName: string, properties?: Record<string, any>) => {

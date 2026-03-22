@@ -59,6 +59,76 @@ type AppActions = {
     backupPolicy?: string;
     tags?: Record<string, string>;
   }) => Resource;
+  createVirtualMachine: (input: {
+    name: string;
+    subscription: string;
+    resourceGroup: string;
+    location: string;
+    image: string;
+    size: string;
+    authenticationType: string;
+    username: string;
+    tags?: Record<string, string>;
+  }) => Resource;
+  createWebApp: (input: {
+    name: string;
+    subscription: string;
+    resourceGroup: string;
+    location: string;
+    publish: string;
+    runtimeStack: string;
+    runtimeVersion: string;
+    operatingSystem: string;
+    planSku: string;
+    tags?: Record<string, string>;
+  }) => Resource;
+  createKeyVault: (input: {
+    name: string;
+    subscription: string;
+    resourceGroup: string;
+    location: string;
+    pricingTier: string;
+    accessModel: string;
+    publicNetworkAccess: string;
+    tags?: Record<string, string>;
+  }) => Resource;
+  createCosmosDb: (input: {
+    name: string;
+    subscription: string;
+    resourceGroup: string;
+    location: string;
+    api: string;
+    consistency: string;
+    regions: string[];
+    tags?: Record<string, string>;
+  }) => Resource;
+  createVirtualNetwork: (input: {
+    name: string;
+    subscription: string;
+    resourceGroup: string;
+    location: string;
+    addressSpace: string;
+    subnetAddress: string;
+    tags?: Record<string, string>;
+  }) => Resource;
+  createDataFactory: (input: {
+    name: string;
+    subscription: string;
+    resourceGroup: string;
+    location: string;
+    gitRepository?: string;
+    gitBranch?: string;
+    tags?: Record<string, string>;
+  }) => Resource;
+  createLogicApp: (input: {
+    name: string;
+    subscription: string;
+    resourceGroup: string;
+    location: string;
+    planType: string;
+    runtime: string;
+    tags?: Record<string, string>;
+  }) => Resource;
 };
 
 const STORAGE_KEY = 'cognior_portal_state_v1';
@@ -286,6 +356,188 @@ export const actions: AppActions = {
       status: 'Running',
       lastViewed: 'just now',
       tags: { ...tags, server, computeTier, slo, networking: networking || '', backupPolicy: backupPolicy || '' },
+      isFavorite: false,
+    };
+    const updatedGroups = state.resourceGroups.map((g) =>
+      g.name === resourceGroup ? { ...g, resourceCount: g.resourceCount + 1, lastModified: 'just now' } : g
+    );
+    store.setState({ resourceGroups: updatedGroups, resources: [resource, ...state.resources] });
+    return resource;
+  },
+  createVirtualMachine: ({ name, subscription, resourceGroup, location, image, size, authenticationType, username, tags = {} }) => {
+    const state = store.getState();
+    const id = (Math.max(0, ...state.resources.map((r) => Number(r.id))) + 1).toString();
+    const resource: Resource = {
+      id,
+      name,
+      type: 'Virtual machine',
+      resourceGroup,
+      location,
+      subscription,
+      status: 'Deploying',
+      lastViewed: 'just now',
+      tags: {
+        ...tags,
+        image,
+        size,
+        authenticationType,
+        username,
+      },
+      isFavorite: false,
+    };
+    const updatedGroups = state.resourceGroups.map((g) =>
+      g.name === resourceGroup ? { ...g, resourceCount: g.resourceCount + 1, lastModified: 'just now' } : g
+    );
+    store.setState({ resourceGroups: updatedGroups, resources: [resource, ...state.resources] });
+    return resource;
+  },
+  createWebApp: ({ name, subscription, resourceGroup, location, publish, runtimeStack, runtimeVersion, operatingSystem, planSku, tags = {} }) => {
+    const state = store.getState();
+    const id = (Math.max(0, ...state.resources.map((r) => Number(r.id))) + 1).toString();
+    const resource: Resource = {
+      id,
+      name,
+      type: 'Web App',
+      resourceGroup,
+      location,
+      subscription,
+      status: 'Running',
+      lastViewed: 'just now',
+      tags: {
+        ...tags,
+        publish,
+        runtimeStack,
+        runtimeVersion,
+        operatingSystem,
+        planSku,
+      },
+      isFavorite: false,
+    };
+    const updatedGroups = state.resourceGroups.map((g) =>
+      g.name === resourceGroup ? { ...g, resourceCount: g.resourceCount + 1, lastModified: 'just now' } : g
+    );
+    store.setState({ resourceGroups: updatedGroups, resources: [resource, ...state.resources] });
+    return resource;
+  },
+  createKeyVault: ({ name, subscription, resourceGroup, location, pricingTier, accessModel, publicNetworkAccess, tags = {} }) => {
+    const state = store.getState();
+    const id = (Math.max(0, ...state.resources.map((r) => Number(r.id))) + 1).toString();
+    const resource: Resource = {
+      id,
+      name,
+      type: 'Key Vault',
+      resourceGroup,
+      location,
+      subscription,
+      status: 'Running',
+      lastViewed: 'just now',
+      tags: {
+        ...tags,
+        pricingTier,
+        accessModel,
+        publicNetworkAccess,
+      },
+      isFavorite: false,
+    };
+    const updatedGroups = state.resourceGroups.map((g) =>
+      g.name === resourceGroup ? { ...g, resourceCount: g.resourceCount + 1, lastModified: 'just now' } : g
+    );
+    store.setState({ resourceGroups: updatedGroups, resources: [resource, ...state.resources] });
+    return resource;
+  },
+  createCosmosDb: ({ name, subscription, resourceGroup, location, api, consistency, regions, tags = {} }) => {
+    const state = store.getState();
+    const id = (Math.max(0, ...state.resources.map((r) => Number(r.id))) + 1).toString();
+    const resource: Resource = {
+      id,
+      name,
+      type: 'Cosmos DB account',
+      resourceGroup,
+      location,
+      subscription,
+      status: 'Running',
+      lastViewed: 'just now',
+      tags: {
+        ...tags,
+        api,
+        consistency,
+        regions: regions.join(','),
+      },
+      isFavorite: false,
+    };
+    const updatedGroups = state.resourceGroups.map((g) =>
+      g.name === resourceGroup ? { ...g, resourceCount: g.resourceCount + 1, lastModified: 'just now' } : g
+    );
+    store.setState({ resourceGroups: updatedGroups, resources: [resource, ...state.resources] });
+    return resource;
+  },
+  createVirtualNetwork: ({ name, subscription, resourceGroup, location, addressSpace, subnetAddress, tags = {} }) => {
+    const state = store.getState();
+    const id = (Math.max(0, ...state.resources.map((r) => Number(r.id))) + 1).toString();
+    const resource: Resource = {
+      id,
+      name,
+      type: 'Virtual network',
+      resourceGroup,
+      location,
+      subscription,
+      status: 'Running',
+      lastViewed: 'just now',
+      tags: {
+        ...tags,
+        addressSpace,
+        subnetAddress,
+      },
+      isFavorite: false,
+    };
+    const updatedGroups = state.resourceGroups.map((g) =>
+      g.name === resourceGroup ? { ...g, resourceCount: g.resourceCount + 1, lastModified: 'just now' } : g
+    );
+    store.setState({ resourceGroups: updatedGroups, resources: [resource, ...state.resources] });
+    return resource;
+  },
+  createDataFactory: ({ name, subscription, resourceGroup, location, gitRepository, gitBranch, tags = {} }) => {
+    const state = store.getState();
+    const id = (Math.max(0, ...state.resources.map((r) => Number(r.id))) + 1).toString();
+    const resource: Resource = {
+      id,
+      name,
+      type: 'Data Factory',
+      resourceGroup,
+      location,
+      subscription,
+      status: 'Running',
+      lastViewed: 'just now',
+      tags: {
+        ...tags,
+        gitRepository: gitRepository ?? '',
+        gitBranch: gitBranch ?? '',
+      },
+      isFavorite: false,
+    };
+    const updatedGroups = state.resourceGroups.map((g) =>
+      g.name === resourceGroup ? { ...g, resourceCount: g.resourceCount + 1, lastModified: 'just now' } : g
+    );
+    store.setState({ resourceGroups: updatedGroups, resources: [resource, ...state.resources] });
+    return resource;
+  },
+  createLogicApp: ({ name, subscription, resourceGroup, location, planType, runtime, tags = {} }) => {
+    const state = store.getState();
+    const id = (Math.max(0, ...state.resources.map((r) => Number(r.id))) + 1).toString();
+    const resource: Resource = {
+      id,
+      name,
+      type: 'Logic App',
+      resourceGroup,
+      location,
+      subscription,
+      status: 'Running',
+      lastViewed: 'just now',
+      tags: {
+        ...tags,
+        planType,
+        runtime,
+      },
       isFavorite: false,
     };
     const updatedGroups = state.resourceGroups.map((g) =>

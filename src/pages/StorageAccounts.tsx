@@ -26,7 +26,7 @@ const StorageAccounts: React.FC = () => {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-foreground">Storage accounts</h1>
-            <p className="text-sm text-foreground-secondary mt-1">Manage your Azure Storage accounts.</p>
+            <p className="text-sm text-foreground-secondary mt-1">Manage your Cognior Storage accounts.</p>
           </div>
           <button onClick={() => navigate('/create/storage-account')} className="azure-button-primary">
             Create

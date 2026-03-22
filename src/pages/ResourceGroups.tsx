@@ -93,7 +93,7 @@ const ResourceGroups: React.FC = () => {
           <div>
             <h1 className="text-2xl font-semibold text-foreground">Resource groups</h1>
             <p className="text-sm text-foreground-secondary mt-1">
-              A resource group is a container that holds related resources for an Azure solution.
+              A resource group is a container that holds related resources for a Cognior solution.
             </p>
           </div>
           

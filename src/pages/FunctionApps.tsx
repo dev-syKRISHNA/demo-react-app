@@ -26,7 +26,7 @@ const FunctionApps: React.FC = () => {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-foreground">Function Apps</h1>
-            <p className="text-sm text-foreground-secondary mt-1">Manage your Azure Function Apps.</p>
+            <p className="text-sm text-foreground-secondary mt-1">Manage your Cognior Function Apps.</p>
           </div>
           <button onClick={() => navigate('/create/function-app')} className="azure-button-primary">
             Create

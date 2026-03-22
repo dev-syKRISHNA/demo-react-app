@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Search, Star, StarOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  mockAzureServices, 
+  mockCogniorServices, 
   serviceCategories,
   trackEvent, 
   AnalyticsEvents,
-  AzureService 
+  CogniorService 
 } from '@/data/mockData';
 import { useAppStore } from '@/lib/store';
 
@@ -16,14 +16,14 @@ const AllServices: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [filteredServices, setFilteredServices] = useState<AzureService[]>(mockAzureServices);
+  const [filteredServices, setFilteredServices] = useState<CogniorService[]>(mockCogniorServices);
 
   useEffect(() => {
     trackEvent(AnalyticsEvents.PAGE_VIEW, { page: 'all_services' });
   }, []);
 
   useEffect(() => {
-    let filtered = mockAzureServices;
+    let filtered = mockCogniorServices;
 
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(service => 
@@ -42,14 +42,14 @@ const AllServices: React.FC = () => {
     setFilteredServices(filtered);
   }, [searchQuery, selectedCategory]);
 
-  const handleServiceClick = (service: AzureService) => {
+  const handleServiceClick = (service: CogniorService) => {
     trackEvent(AnalyticsEvents.MARKETPLACE_SERVICE_CLICK, {
       serviceId: service.id,
       serviceName: service.name,
       category: service.category,
       location: 'all_services'
     });
-    navigate(`/create/${service.id}`);
+    navigate(`/create/${service.route}`);
   };
 
   const handleCategoryClick = (categoryId: string) => {
@@ -95,7 +95,7 @@ const AllServices: React.FC = () => {
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-foreground mb-2">All services</h1>
           <p className="text-foreground-secondary">
-            Browse all Azure services by category or search for specific services.
+            Browse all Cognior services by category or search for specific services.
           </p>
         </div>
 
@@ -127,7 +127,7 @@ const AllServices: React.FC = () => {
                       : 'text-foreground hover:bg-secondary'
                   }`}
                 >
-                  All services ({mockAzureServices.length})
+                  All services ({mockCogniorServices.length})
                 </button>
                 
                 {serviceCategories.map((category) => (

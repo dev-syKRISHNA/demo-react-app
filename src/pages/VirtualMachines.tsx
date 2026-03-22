@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Search, Filter, MoreHorizontal, Play, Square } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Breadcrumb } from '@/components/Breadcrumb';
-import { BladePanel } from '@/components/BladePanel';
 import { trackEvent, AnalyticsEvents } from '@/data/mockData';
 
 const mockVMs = [
@@ -41,7 +41,7 @@ const mockVMs = [
 ];
 
 export const VirtualMachines: React.FC = () => {
-  const [isCreateBladeOpen, setIsCreateBladeOpen] = useState(false);
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVMs, setSelectedVMs] = useState<string[]>([]);
 
@@ -50,7 +50,7 @@ export const VirtualMachines: React.FC = () => {
       resourceType: 'virtual_machine',
       source: 'vm_list_page'
     });
-    setIsCreateBladeOpen(true);
+    navigate('/virtual-machines/create/basics');
   };
 
   const handleVMAction = (vmId: string, action: string) => {
@@ -224,97 +224,6 @@ export const VirtualMachines: React.FC = () => {
           </div>
         </div>
       </div>
-
-      <BladePanel
-        isOpen={isCreateBladeOpen}
-        onClose={() => setIsCreateBladeOpen(false)}
-        title="Create virtual machine"
-        width="xl"
-      >
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Virtual machine name *</label>
-              <input
-                type="text"
-                className="input w-full"
-                placeholder="Enter virtual machine name"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Region *</label>
-              <select className="input w-full">
-                <option>East US</option>
-                <option>West US 2</option>
-                <option>Central US</option>
-                <option>North Europe</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Availability options</label>
-              <select className="input w-full">
-                <option>No infrastructure redundancy required</option>
-                <option>Availability zone</option>
-                <option>Availability set</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Image *</label>
-              <select className="input w-full">
-                <option>Windows Server 2022 Datacenter - x64 Gen2</option>
-                <option>Ubuntu Server 20.04 LTS - x64 Gen2</option>
-                <option>Windows 11 Pro - x64 Gen2</option>
-                <option>CentOS 8.2 - x64 Gen2</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Size *</label>
-              <button className="input w-full text-left flex items-center justify-between">
-                <span>Standard_B1s - 1 vcpu, 1 GiB memory</span>
-                <span className="text-foreground-secondary">Select size</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="border-t border-border pt-6">
-            <h3 className="font-medium mb-4">Administrator account</h3>
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Username *</label>
-                <input
-                  type="text"
-                  className="input w-full"
-                  placeholder="Enter username"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Password *</label>
-                <input
-                  type="password"
-                  className="input w-full"
-                  placeholder="Enter password"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-6 border-t border-border">
-            <button
-              onClick={() => setIsCreateBladeOpen(false)}
-              className="btn-secondary"
-            >
-              Cancel
-            </button>
-            <button className="btn-primary">
-              Create
-            </button>
-          </div>
-        </div>
-      </BladePanel>
     </div>
   );
 };

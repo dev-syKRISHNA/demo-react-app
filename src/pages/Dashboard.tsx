@@ -1,26 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Plus, 
-  Layers, 
-  Database, 
-  Zap, 
-  ShoppingBag, 
-  BarChart3, 
-  Rocket, 
-  Bot, 
+import {
+  Plus,
+  Layers,
+  Database,
+  Zap,
+  ShoppingBag,
+  BarChart3,
+  Rocket,
+  Bot,
   Box,
   ArrowRight,
   Star,
   StarOff
 } from 'lucide-react';
 import { ServiceTile } from '@/components/ServiceTile';
-import { 
-  trackEvent, 
+import {
+  trackEvent,
   AnalyticsEvents,
   Resource
 } from '@/data/mockData';
-import { useAppStore } from '@/lib/store';
+import { actions, useAppStore } from '@/lib/store';
 
 interface ResourceTableProps {
   resources: Resource[];
@@ -101,20 +101,36 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'recent' | 'favorite'>('recent');
   const resources = useAppStore((s) => s.resources);
+  const quickTiles = [
+    { icon: Plus, title: 'Create a resource', path: '/create-resource', className: 'bg-accent border-accent-foreground/20', featured: true },
+    { icon: Layers, title: 'Resource groups', path: '/resource-groups' },
+    { icon: Database, title: 'Cognior Cosmos DB', path: '/cosmos-db' },
+    { icon: Zap, title: 'Function App', path: '/function-apps' },
+    { icon: ShoppingBag, title: 'Storage accounts', path: '/storage-accounts' },
+    { icon: BarChart3, title: 'Monitor', path: '/monitor' },
+    { icon: Rocket, title: 'Quickstart Center', path: '/all-services' },
+    { icon: Bot, title: 'Cognior AI Foundry', path: '/all-services' },
+    { icon: Box, title: 'Kubernetes services', path: '/kubernetes-service' },
+    { icon: ArrowRight, title: 'More services', path: '/all-services' }
+  ] as const;
 
   useEffect(() => {
     trackEvent(AnalyticsEvents.PAGE_VIEW, { page: 'dashboard' });
   }, []);
 
-  const handleServiceClick = (serviceName: string, path: string) => {
+  const handleServiceClick = (tile: typeof quickTiles[number]) => {
     trackEvent(AnalyticsEvents.MARKETPLACE_SERVICE_CLICK, {
-      service: serviceName,
+      service: tile.title,
       location: 'dashboard_tiles'
     });
-    navigate(path);
+    navigate(tile.path);
   };
 
-  const handleToggleFavorite = () => {};
+  const handleToggleFavorite = (resourceId: string) => {
+    const resource = resources.find((item) => item.id === resourceId);
+    if (!resource) return;
+    actions.updateResource(resourceId, { isFavorite: !resource.isFavorite });
+  };
 
   const filteredResources = resources.filter(resource =>
     activeTab === 'recent' ? true : resource.isFavorite
@@ -122,62 +138,21 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Azure services section */}
+      {/* Cognior services section */}
       <section className="p-6">
-        <h1 className="text-xl font-semibold text-foreground mb-6">Azure services</h1>
+        <h1 className="text-xl font-semibold text-foreground mb-6">Cognior services</h1>
         
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
-          <ServiceTile
-            icon={Plus}
-            title="Create a resource"
-            onClick={() => handleServiceClick('Create a resource', '/create-resource')}
-            className="bg-accent border-accent-foreground/20"
-          />
-          <ServiceTile
-            icon={Layers}
-            title="Resource groups"
-            onClick={() => handleServiceClick('Resource groups', '/resource-groups')}
-          />
-          <ServiceTile
-            icon={Database}
-            title="Azure Cosmos DB"
-            onClick={() => handleServiceClick('Azure Cosmos DB', '/cosmos-db')}
-          />
-          <ServiceTile
-            icon={Zap}
-            title="Function App"
-            onClick={() => handleServiceClick('Function App', '/function-apps')}
-          />
-          <ServiceTile
-            icon={Database}
-            title="Storage browser"
-            onClick={() => handleServiceClick('Storage browser', '/storage-browser')}
-          />
-          <ServiceTile
-            icon={ShoppingBag}
-            title="Storage accounts"
-            onClick={() => handleServiceClick('Storage accounts', '/storage')}
-          />
-          <ServiceTile
-            icon={Rocket}
-            title="Quickstart Center"
-            onClick={() => handleServiceClick('Quickstart Center', '/quickstart')}
-          />
-          <ServiceTile
-            icon={Bot}
-            title="Azure AI Foundry"
-            onClick={() => handleServiceClick('Azure AI Foundry', '/ai-foundry')}
-          />
-          <ServiceTile
-            icon={Box}
-            title="Kubernetes services"
-            onClick={() => handleServiceClick('Kubernetes services', '/kubernetes')}
-          />
-          <ServiceTile
-            icon={ArrowRight}
-            title="More services"
-            onClick={() => handleServiceClick('More services', '/all-services')}
-          />
+          {quickTiles.map((tile) => (
+            <ServiceTile
+              key={tile.title}
+              icon={tile.icon}
+              title={tile.title}
+              onClick={() => handleServiceClick(tile)}
+              className={tile.className ?? ''}
+              featured={Boolean(tile.featured)}
+            />
+          ))}
         </div>
       </section>
 

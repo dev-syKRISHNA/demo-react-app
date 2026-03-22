@@ -26,7 +26,7 @@ const SqlDatabases: React.FC = () => {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-foreground">SQL databases</h1>
-            <p className="text-sm text-foreground-secondary mt-1">Manage Azure SQL databases.</p>
+            <p className="text-sm text-foreground-secondary mt-1">Manage Cognior SQL databases.</p>
           </div>
           <button onClick={() => navigate('/create/sql-database')} className="azure-button-primary">Create</button>
         </div>
