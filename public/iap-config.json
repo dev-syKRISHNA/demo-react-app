@@ -2,5 +2,5 @@
   "organizationid": "00000000-0000-0000-0000-000000000001",
   "siteid": "019d1975-8292-7ccc-b7db-28236f5febcf",
   "apikey": "00000000000000000000000000000001_019d197582927cccb7db28236f5febcf_fAQMtTFgUMpJdiubD2LzJGVcviYyPv8KgZizSqL03as=",
-  "apiurl": "/api"
+  "apiurl": "https://cogniorbackenddev.azurewebsites.net/api"
 }
