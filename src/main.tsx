@@ -4,7 +4,7 @@ import "./index.css";
 
 // Dynamically load the unbroken UMD bundle to bypass webpack/obfuscator issues
 const script = document.createElement('script');
-script.src = "https://unpkg.com/@cognior/iap-sdk@0.2.8/dist/index.umd.js";
+script.src = "https://unpkg.com/@cognior/iap-sdk@0.2.10/dist/index.umd.js";
 script.onload = () => {
   if ((window as any).DAP && (window as any).DAP.init) {
     (window as any).DAP.init({
