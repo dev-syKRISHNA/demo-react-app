@@ -40,24 +40,6 @@
   <meta name="theme-color" content="#0078d4" />
   <meta name="msapplication-TileColor" content="#0078d4" />
 
-  <!-- DAP SDK -->
-  <script src="/index.umd.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      console.log('Document ready, initializing DAP SDK...');
-
-      if (typeof DAP !== 'undefined') {
-        DAP.init({
-          configUrl: '/iap-config.json',
-          debug: true
-        })
-          .then(() => console.log('DAP SDK initialized successfully'))
-          .catch(err => console.error('DAP SDK initialization failed:', err));
-      } else {
-        console.error('DAP SDK script not loaded correctly');
-      }
-    });
-  </script>
 
   <!-- Structured Data for SEO -->
   <script type="application/ld+json">
