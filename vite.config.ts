@@ -19,6 +19,7 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@cognior/iap-sdk": path.resolve(__dirname, "node_modules/@cognior/iap-sdk/dist/index.esm.js"),
     },
   },
 }));
