@@ -1,6 +1,6 @@
 {
-  "organizationid": "REPLACE_WITH_TEST_ORG_ID",
-  "siteid": "REPLACE_WITH_TEST_SITE_ID",
-  "apikey": "REPLACE_WITH_TEST_API_KEY",
+  "organizationid": "019d3df9-5f3f-7f02-9e97-9b860da252bd",
+  "siteid": "019d3e43-f9b2-73b8-9da9-39f4ba41d369",
+  "apikey": "019d3df95f3f7f029e979b860da252bd_019d3e43f9b273b89da939f4ba41d369_BfdaBqMpSIkVdiaCfO1c5zxR3D42cSocZkOyza1utl0=",
   "apiurl": "https://iap-api-test.cognior.com/api"
 }
