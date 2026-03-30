@@ -38,9 +38,9 @@
     "@babel/helper-validator-identifier" "^7.25.9"
 
 "@cognior/iap-sdk@^0.2.10":
-  version "0.2.10"
-  resolved "https://registry.npmjs.org/@cognior/iap-sdk/-/iap-sdk-0.2.10.tgz"
-  integrity sha512-ptYUCEPCJspsewbbYcvQRLu81DD2NR4hX3KThay266u/IkqGeE9M3dGedM50i0o5KWePBSFIqQ5487B17gl+1A==
+  version "0.2.12"
+  resolved "https://registry.npmjs.org/@cognior/iap-sdk/-/iap-sdk-0.2.12.tgz"
+  integrity sha512-MmPY8G4Wf/hrPmTU7jJOHH8UKQ4fCZDWS1o3tigJBaYyWDOpemsZUiI7QqqP43BaTZmPEiGoBUl9K3Q7oolMgQ==
 
 "@esbuild/win32-x64@0.21.5":
   version "0.21.5"
