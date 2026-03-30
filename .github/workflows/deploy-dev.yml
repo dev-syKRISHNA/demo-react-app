@@ -9,6 +9,7 @@ jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     name: Build and Deploy to Dev
+    environment: dev
     steps:
       - uses: actions/checkout@v3
         with:

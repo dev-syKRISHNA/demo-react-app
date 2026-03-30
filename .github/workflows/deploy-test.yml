@@ -7,6 +7,7 @@ jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     name: Build and Deploy to Test
+    environment: test
     steps:
       - uses: actions/checkout@v3
         with:
