@@ -1,0 +1,6 @@
+{
+  "organizationid": "REPLACE_WITH_TEST_ORG_ID",
+  "siteid": "REPLACE_WITH_TEST_SITE_ID",
+  "apikey": "REPLACE_WITH_TEST_API_KEY",
+  "apiurl": "https://iap-api-test.cognior.com/api"
+}

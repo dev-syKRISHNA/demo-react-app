@@ -1,0 +1,6 @@
+{
+  "organizationid": "REPLACE_WITH_STAGE_ORG_ID",
+  "siteid": "REPLACE_WITH_STAGE_SITE_ID",
+  "apikey": "REPLACE_WITH_STAGE_API_KEY",
+  "apiurl": "https://iap-api-stage.cognior.com/api"
+}
