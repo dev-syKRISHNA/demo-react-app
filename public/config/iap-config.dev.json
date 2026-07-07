@@ -1,6 +1,6 @@
 {
-  "organizationid": "00000000-0000-0000-0000-000000000001",
-  "siteid": "019d1975-8292-7ccc-b7db-28236f5febcf",
-  "apikey": "00000000000000000000000000000001_019d197582927cccb7db28236f5febcf_fAQMtTFgUMpJdiubD2LzJGVcviYyPv8KgZizSqL03as=",
-  "apiurl": "https://iap-api-dev.cognior.com/api"
+  "organizationid": "019f3bd9-029c-7bdd-b56a-cff1b9fe9638",
+  "siteid": "019f3be5-5e08-7290-ba22-508593884138",
+  "apikey": "019f3bd9029c7bddb56acff1b9fe9638_019f3be55e087290ba22508593884138_dBYVs92AuhmI1MzS6OQXJLb/sRUKNaLKq3pK80cm8PE=",
+  "apiurl": "https://cogniorbackenddev.azurewebsites.net/api"
 }
