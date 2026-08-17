@@ -1,17 +1,37 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 import './index.css';
 import App from './App';
-import reportWebVitals from './reportWebVitals';
+import { AuthProvider } from './contexts/AuthContext';
+
+const SDK_URL = "https://iapsdk.cognior.com/v0.2.33/index.umd.js";
+
+if (!document.querySelector(`script[src="${SDK_URL}"]`)) {
+  const script = document.createElement("script");
+  script.src = SDK_URL;
+  script.onload = () => {
+    const DAP = window.DAP;
+    if (DAP && DAP.init) {
+      DAP.init({
+        configUrl: "/iap-config.json",
+        debug: true,
+      }).catch((err) => console.error("SDK initialization failed:", err));
+    } else {
+      console.error("DAP global not found after script load");
+    }
+  };
+  script.onerror = () => console.error("Failed to load DAP SDK script");
+  document.head.appendChild(script);
+}
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <BrowserRouter>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );
-
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
