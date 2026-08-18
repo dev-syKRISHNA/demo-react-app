@@ -1,7 +1,6 @@
 import React from 'react';
 import { Header } from '../components/Sidebar';
 import {
-  TrendingUp,
   TrendingDown,
   Eye,
   MousePointerClick,
