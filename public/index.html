@@ -13,7 +13,35 @@
 
   <title>React App</title>
   <!-- SDK Integration -->
+  <!-- STEP 1: Clean stale state and preview params BEFORE SDK loads -->
+  <script>
+    // Clear any stale DAP/IAP session/local storage
+    try {
+      Object.keys(sessionStorage)
+        .filter(function(k) { return /^(DAP|dap|iap)/i.test(k); })
+        .forEach(function(k) { sessionStorage.removeItem(k); });
+      Object.keys(localStorage)
+        .filter(function(k) { return /^(DAP|dap|iap)/i.test(k); })
+        .forEach(function(k) { localStorage.removeItem(k); });
+    } catch(e) {}
+
+    // Strip ?flowId / ?previewFlowId BEFORE SDK script loads (SDK reads URL on load)
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      if (params.has('flowId') || params.has('flow_id') || params.has('previewFlowId')) {
+        params.delete('flowId');
+        params.delete('flow_id');
+        params.delete('previewFlowId');
+        var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
+        window.history.replaceState({}, '', newUrl);
+      }
+    })();
+  </script>
+
+  <!-- STEP 2: Load SDK after URL/storage is clean -->
   <script src="%PUBLIC_URL%/index.umd.js"></script>
+
+  <!-- STEP 3: Initialize SDK -->
   <script>
     if (window.DAP && window.DAP.init) {
       window.DAP.init({
