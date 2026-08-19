@@ -6,7 +6,7 @@ import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 
 
-/*
+
 // --- APPROACH 2 (CDN Dynamic Loading) ---
 // To use the CDN instead of the local index.umd.js, uncomment this block
 // and remove the <script> tags from public/index.html
@@ -30,7 +30,7 @@ if (!document.querySelector(`script[src="${SDK_URL}"]`)) {
   script.onerror = () => console.error("Failed to load DAP SDK script");
   document.head.appendChild(script);
 }
-*/
+
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
