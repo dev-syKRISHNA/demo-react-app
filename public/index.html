@@ -12,6 +12,14 @@
   <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
 
   <title>React App</title>
+  <script>
+    (function() {
+      try {
+        var theme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (e) {}
+    })();
+  </script>
   <!-- SDK Integration -->
   <script src="%PUBLIC_URL%/index.umd.js"></script>
   <script>

@@ -98,7 +98,7 @@ export default function Sidebar() {
 
 export function Header({ title }) {
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('theme') || 'dark';
+    return localStorage.getItem('theme') || 'light';
   });
 
   useEffect(() => {
