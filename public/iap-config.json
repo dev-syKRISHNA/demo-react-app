@@ -2,5 +2,5 @@
   "organizationid": "01a00e8c-5b58-7a32-aa3b-76d0a0a7c42c",
   "siteid": "01a04281-6ef0-7c22-9684-33c738662139",
   "apikey": "01a00e8c5b587a32aa3b76d0a0a7c42c_01a042816ef07c22968433c738662139_QoiAbND6+Jg/Heb4isUEkywBg0qGzAbziKAQ4o3e2yk=",
-  "apiurl": "https://iap-api-dev.cognior.com/api"
+  "apiurl": "https://iap-api-dev.cognior.com/api/v1"
 }
