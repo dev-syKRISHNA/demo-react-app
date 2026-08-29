@@ -38,6 +38,17 @@
   <!-- Performance and Security -->
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="theme-color" content="#0078d4" />
+
+  <!-- DAP SDK Integration -->
+  <script src="/index.umd.js"></script>
+  <script>
+    if (window.DAP && window.DAP.init) {
+      window.DAP.init({
+        configUrl: "/iap-config.json",
+        debug: true
+      }).catch(function (err) { console.error("DAP SDK Init Error:", err); });
+    }
+  </script>
   <meta name="msapplication-TileColor" content="#0078d4" />
 
 
