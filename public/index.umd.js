@@ -2588,8 +2588,7 @@ var DAP = (function (exports) {
     async function renderStepExperience(stepIndex, step, stepId, showNavigation) {
       cleanupCurrentStep();
       console.debug(`[DAP] Rendering step ${stepIndex} (${step.kind})`);
-      const normalizedKind = step.kind?.toLowerCase() || "";
-      switch (normalizedKind) {
+      switch (step.kind) {
         case "modal":
           await renderModalStep(step, showNavigation);
           break;
@@ -2603,11 +2602,9 @@ var DAP = (function (exports) {
             await renderPopoverStep(step.popover, stepIndex);
           }
           break;
-        case "microsurvey":
         case "survey":
-          const surveyData = step.survey || step.microsurvey;
-          if (surveyData) {
-            await renderSurveyStep(surveyData, stepIndex);
+          if (step.survey) {
+            await renderSurveyStep(step.survey, stepIndex);
           } else {
             console.warn("[DAP] Survey step has no survey data \u2014 skipping");
             if (stepIndex < payload.steps.length - 1) {
