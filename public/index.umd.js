@@ -80,16 +80,20 @@ var DAP = (function (exports) {
       siteid: j.siteid || j.siteId || j.siteCollectionId || "",
       apikey: j.apikey || j.apiKey || "",
       apiurl: j.apiurl || j.apiUrl || "",
+      accessToken: j.accessToken || j.bearerToken || "",
       enableDraggableModals: j.enableDraggableModals !== void 0 ? j.enableDraggableModals : j.enable_draggable_modals
     };
   }
   function validateConfig(j) {
     const normalized = normalizeConfig(j);
-    const fields = ["organizationid", "siteid", "apikey", "apiurl"];
+    const fields = normalized.apikey ? ["organizationid", "siteid", "apikey", "apiurl"] : ["organizationid", "siteid", "apiurl"];
+    if (!normalized.apikey && !normalized.accessToken) {
+      throw new Error(`Config missing both "apikey" and "accessToken" \u2014 at least one is required`);
+    }
     for (const f of fields) {
       const val = normalized[f];
       if (typeof val !== "string" || val.trim() === "") {
-        throw new Error(`Config missing/invalid "${f}" (checked both lowercase and camelCase formats)`);
+        throw new Error(`Config missing/invalid "${f}"`);
       }
     }
   }
@@ -107,7 +111,7 @@ var DAP = (function (exports) {
   async function http(cfg, path, opts = {}) {
     const method = (opts.method || "GET").toUpperCase();
     const headers = {
-      "X-Api-Key": cfg.apikey,
+      ...cfg.apikey ? { "X-Api-Key": cfg.apikey } : {},
       ...opts.includeHostHeader && opts.hostBase ? { "X-Host-Url": opts.hostBase } : {},
       ...opts.headers || {}
     };
@@ -7075,23 +7079,22 @@ var DAP = (function (exports) {
   flex-shrink: 0;
 }
 
-/* \u2500\u2500 Micro Survey (inline widget) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* \u2500\u2500 Micro Survey (modal card) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .dap-microsurvey {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 380px;
-  background: var(--dap-primary-light, #f8fafc) !important;
+  position: relative;
+  width: 100%;
+  max-width: min(90vw, 440px);
+  background: var(--sdk-background, var(--dap-surface, #faf9f7)) !important;
   border: 1.5px solid color-mix(in srgb, var(--dap-primary, #6366f1) 28%, transparent) !important;
   border-radius: 18px;
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--dap-primary, #6366f1) 10%, transparent),
     0 20px 50px color-mix(in srgb, var(--dap-primary, #6366f1) 16%, rgba(0,0,0,0.12)),
     0 6px 16px rgba(0, 0, 0, 0.08);
-  padding: 22px;
-  animation: microsurveyIn 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  z-index: 2147483640;
-  color: #0f172a !important;
+  padding: 24px;
+  animation: dapModalIn 200ms ease both;
+  z-index: 1;
+  color: #000000 !important;
   font-family: 'DM Sans', 'Outfit', system-ui, -apple-system, sans-serif;
   overflow: hidden;
 }
@@ -7141,10 +7144,9 @@ var DAP = (function (exports) {
   .dap-scale-option label, .dap-nps-option label { font-size: 12px; height: 40px; }
 
   .dap-microsurvey {
-    width: calc(100% - 32px);
-    left: 16px;
-    right: 16px;
-    bottom: 16px;
+    width: 100%;
+    max-width: 95vw;
+    padding: 18px 20px;
   }
 }
 
@@ -7582,6 +7584,23 @@ var DAP = (function (exports) {
   var activeMicroSurveys = /* @__PURE__ */ new Map();
   async function renderMicroSurvey(flow) {
     const { payload, id } = flow;
+    if (!payload.question && payload.questions && payload.questions.length > 0) {
+      const q0 = payload.questions[0];
+      payload.question = q0.question;
+      payload.questionId = payload.questionId || q0.questionId;
+      if (!payload.options && q0.options) {
+        payload.options = q0.options.map((opt) => typeof opt === "string" ? { label: opt, value: opt } : opt);
+      }
+      if (!payload.type) {
+        if (q0.type === "SingleChoice" || q0.type === "MultipleChoice" || q0.type === "Dropdown") {
+          payload.type = "choice";
+        } else if (q0.type === "StarRating" || q0.type === "StarChoice") {
+          payload.type = "rating";
+        } else if (q0.type === "TextSingle" || q0.type === "TextMulti") {
+          payload.type = "text";
+        }
+      }
+    }
     console.debug("[DAP] MicroSurvey initialized", { id, payload });
     if (!payload.question) {
       console.error("[DAP] MicroSurvey missing required question");
@@ -7609,7 +7628,7 @@ var DAP = (function (exports) {
       isActive: false
     };
     activeMicroSurveys.set(id, microSurveyState);
-    showMicroSurvey(microSurveyState, payload);
+    showMicroSurvey(microSurveyState);
     console.debug("[DAP] MicroSurvey setup complete", { id });
   }
   function createMicroSurveyElement(payload, id, flow) {
@@ -7647,7 +7666,7 @@ var DAP = (function (exports) {
     letter-spacing: 0.08em;
     text-transform: uppercase;
   `;
-    microTitle.textContent = "Quick Survey";
+    microTitle.textContent = payload.header || "Quick Survey";
     microHeader.appendChild(microTitle);
     microSurvey.appendChild(microHeader);
     const questionEl = document.createElement("div");
@@ -7739,8 +7758,15 @@ var DAP = (function (exports) {
     return microSurvey;
   }
   function showMicroSurvey(state, payload) {
-    document.body.appendChild(state.element);
-    positionMicroSurvey(state.element, state.targetElement, payload.position || "center");
+    const root = ensureRoot();
+    const wrap = document.createElement("div");
+    wrap.className = "dap-modal-wrap";
+    wrap.setAttribute("role", "presentation");
+    wrap.style.pointerEvents = "auto";
+    wrap.style.zIndex = "2147483640";
+    wrap.appendChild(state.element);
+    state.overlayElement = wrap;
+    root.appendChild(wrap);
     requestAnimationFrame(() => {
       state.element.style.opacity = "1";
       state.element.style.transform = "scale(1) translateY(0)";
@@ -7748,43 +7774,6 @@ var DAP = (function (exports) {
     state.isActive = true;
     const cleanup = () => cleanupMicroSurvey(state.id);
     state.cleanup.push(cleanup);
-  }
-  function positionMicroSurvey(element, targetElement, position = "center") {
-    if (targetElement) {
-      const targetRect = targetElement.getBoundingClientRect();
-      const elementRect = element.getBoundingClientRect();
-      const viewport = { width: window.innerWidth, height: window.innerHeight };
-      switch (position) {
-        case "top":
-          element.style.left = `${targetRect.left + (targetRect.width - elementRect.width) / 2}px`;
-          element.style.top = `${targetRect.top - elementRect.height - 10}px`;
-          break;
-        case "bottom":
-          element.style.left = `${targetRect.left + (targetRect.width - elementRect.width) / 2}px`;
-          element.style.top = `${targetRect.bottom + 10}px`;
-          break;
-        case "left":
-          element.style.left = `${targetRect.left - elementRect.width - 10}px`;
-          element.style.top = `${targetRect.top + (targetRect.height - elementRect.height) / 2}px`;
-          break;
-        case "right":
-          element.style.left = `${targetRect.right + 10}px`;
-          element.style.top = `${targetRect.top + (targetRect.height - elementRect.height) / 2}px`;
-          break;
-        default:
-          element.style.left = `${(viewport.width - elementRect.width) / 2}px`;
-          element.style.top = `${(viewport.height - elementRect.height) / 2}px`;
-      }
-      const rect = element.getBoundingClientRect();
-      if (rect.right > viewport.width) element.style.left = `${viewport.width - elementRect.width - 10}px`;
-      if (rect.bottom > viewport.height) element.style.top = `${viewport.height - elementRect.height - 10}px`;
-      if (rect.left < 0) element.style.left = "10px";
-      if (rect.top < 0) element.style.top = "10px";
-    } else {
-      element.style.left = "50%";
-      element.style.top = "50%";
-      element.style.transform = "translate(-50%, -50%) scale(0.95)";
-    }
   }
   function createRatingContent(container, payload, id) {
     const min = payload.rating?.min || 1;
@@ -7851,8 +7840,10 @@ var DAP = (function (exports) {
     payload.options.forEach((option) => {
       const optionEl = document.createElement("button");
       optionEl.type = "button";
-      optionEl.textContent = option.label;
-      optionEl.dataset.value = option.value;
+      const label = typeof option === "string" ? option : option.label || option.value || "";
+      const val = typeof option === "string" ? option : option.value || option.label || "";
+      optionEl.textContent = label;
+      optionEl.dataset.value = val;
       optionEl.style.cssText = `
       padding: 11px 16px;
       border: 1.5px solid rgba(var(--dap-primary-rgb, 14,165,233), 0.18);
@@ -7989,16 +7980,17 @@ var DAP = (function (exports) {
         console.error("[DAP] Cleanup error:", error);
       }
     });
-    if (state.element.parentElement) {
-      state.element.style.opacity = "0";
-      state.element.style.transform = "scale(0.95) translateY(10px)";
-      state.element.style.transition = "all 250ms ease";
-      setTimeout(() => {
-        if (state.element.parentElement) {
-          state.element.parentElement.removeChild(state.element);
-        }
-      }, 260);
+    const nodeToRemove = state.overlayElement || state.element;
+    state.element.style.opacity = "0";
+    state.element.style.transform = "scale(0.95) translateY(10px)";
+    state.element.style.transition = "all 200ms ease";
+    if (state.overlayElement) {
+      state.overlayElement.style.opacity = "0";
+      state.overlayElement.style.transition = "opacity 200ms ease";
     }
+    setTimeout(() => {
+      nodeToRemove.remove();
+    }, 220);
   }
   function renderQuestion(question, index) {
     const wrapper = document.createElement("div");
@@ -16761,16 +16753,19 @@ var DAP = (function (exports) {
           shouldUseModal,
           finalMode: shouldUseModal ? "modal" : "inline"
         });
+        const firstQ = ux.content?.questions?.[0];
+        const normalizedOptions = ux.content?.options || (firstQ?.options ? firstQ.options.map((opt) => typeof opt === "string" ? { label: opt, value: opt } : opt) : void 0);
+        const normalizedType = ux.content?.type || (firstQ ? ["SingleChoice", "MultipleChoice", "Dropdown"].includes(firstQ.type) ? "choice" : ["StarRating", "StarChoice"].includes(firstQ.type) ? "rating" : ["TextSingle", "TextMulti"].includes(firstQ.type) ? "text" : "choice" : "choice");
         payload = {
           // Include both single question fields (for simple micro surveys)
-          question: ux.content?.question || ux.content?.title || ux.content?.header,
-          type: ux.content?.type || "choice",
-          options: ux.content?.options,
-          placeholder: ux.content?.placeholder,
+          question: ux.content?.question || firstQ?.question || ux.content?.title || ux.content?.header,
+          type: normalizedType,
+          options: normalizedOptions,
+          placeholder: ux.content?.placeholder || firstQ?.placeholder,
           submitText: ux.content?.submitText,
           cancelText: ux.content?.cancelText,
           rating: ux.content?.rating,
-          questionId: ux.content?.questionId,
+          questionId: ux.content?.questionId || firstQ?.questionId,
           // Include full survey fields (for complex surveys)
           header: ux.content?.header,
           body: ux.content?.body,

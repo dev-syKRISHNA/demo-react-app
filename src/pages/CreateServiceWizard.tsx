@@ -598,8 +598,8 @@ const CreateServiceWizard: React.FC = () => {
       formState[field.id] !== undefined
         ? formState[field.id]
         : field.type === 'toggle'
-        ? false
-        : '';
+          ? false
+          : '';
     const opts = fieldOptions(field);
 
     switch (field.type) {
@@ -727,20 +727,20 @@ const CreateServiceWizard: React.FC = () => {
           const tags: any[] = Array.isArray(formState.vmTags)
             ? formState.vmTags
             : [
-                {
-                  name: '',
-                  value: '',
-                  scope: 'vm-and-resources',
-                },
-              ];
+              {
+                name: '',
+                value: '',
+                scope: 'vm-and-resources',
+              },
+            ];
 
           const updateTagRow = (index: number, key: 'name' | 'value' | 'scope', newValue: string) => {
             const next = tags.map((row, i) =>
               i === index
                 ? {
-                    ...row,
-                    [key]: newValue,
-                  }
+                  ...row,
+                  [key]: newValue,
+                }
                 : row,
             );
             setFormState((prev) => ({
@@ -899,14 +899,12 @@ const CreateServiceWizard: React.FC = () => {
                 className="sr-only"
               />
               <div
-                className={`w-10 h-5 rounded-full transition-colors ${
-                  value ? 'bg-primary' : 'bg-border'
-                }`}
+                className={`w-10 h-5 rounded-full transition-colors ${value ? 'bg-primary' : 'bg-border'
+                  }`}
               >
                 <div
-                  className={`w-4 h-4 bg-white rounded-full shadow transform transition ${
-                    value ? 'translate-x-5' : 'translate-x-1'
-                  }`}
+                  className={`w-4 h-4 bg-white rounded-full shadow transform transition ${value ? 'translate-x-5' : 'translate-x-1'
+                    }`}
                 />
               </div>
             </div>
@@ -1074,8 +1072,8 @@ const CreateServiceWizard: React.FC = () => {
               const status = isComplete
                 ? 'complete'
                 : index === currentStep
-                ? 'active'
-                : 'upcoming';
+                  ? 'active'
+                  : 'upcoming';
               return (
                 <button
                   key={step.id}
@@ -1106,11 +1104,10 @@ const CreateServiceWizard: React.FC = () => {
                       });
                     }
                   }}
-                  className={`flex items-center w-full text-left px-3 py-2 rounded transition ${
-                    status === 'active'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-secondary text-foreground'
-                  }`}
+                  className={`flex items-center w-full text-left px-3 py-2 rounded transition ${status === 'active'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'hover:bg-secondary text-foreground'
+                    }`}
                 >
                   {status === 'complete' ? (
                     <CheckCircle2 size={16} className="mr-2" />
@@ -1240,10 +1237,10 @@ const CreateServiceWizard: React.FC = () => {
                         {deploymentStatus === 'idle'
                           ? 'Ready to deploy'
                           : deploymentStatus === 'deploying'
-                          ? 'Deploying...'
-                          : deploymentStatus === 'succeeded'
-                          ? 'Succeeded'
-                          : 'Failed'}
+                            ? 'Deploying...'
+                            : deploymentStatus === 'succeeded'
+                              ? 'Succeeded'
+                              : 'Failed'}
                       </span>
                     </p>
                     {deploymentStatus === 'deploying' && (
@@ -1285,8 +1282,8 @@ const CreateServiceWizard: React.FC = () => {
                   {deploymentStatus === 'deploying'
                     ? 'Deploying...'
                     : deploymentStatus === 'succeeded'
-                    ? 'Deployment succeeded'
-                    : 'Create'}
+                      ? 'Deployment succeeded'
+                      : 'Create'}
                 </span>
               </button>
             )}
