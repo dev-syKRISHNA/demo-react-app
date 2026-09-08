@@ -7349,6 +7349,39 @@ var DAP = (function (exports) {
     console.debug("[DAP] Defaulting to modal mode");
     return "modal";
   }
+  function isQuestionAnswered(form, q) {
+    switch (q.type) {
+      case "SingleChoice":
+      case "Dropdown": {
+        const radio = form.querySelector(`input[name="${q.questionId}"]:checked`);
+        const select = form.querySelector(`select[name="${q.questionId}"]`);
+        return Boolean(radio && radio.value || select && select.value);
+      }
+      case "MultipleChoice": {
+        const checked = form.querySelectorAll(`input[name="${q.questionId}[]"]:checked`);
+        return checked.length > 0;
+      }
+      case "TextSingle": {
+        const input = form.querySelector(`input[name="${q.questionId}"]`);
+        return Boolean(input && input.value && input.value.trim().length > 0);
+      }
+      case "TextMulti": {
+        const textarea = form.querySelector(`textarea[name="${q.questionId}"]`);
+        return Boolean(textarea && textarea.value && textarea.value.trim().length > 0);
+      }
+      case "OpinionScale":
+      case "OpinionScaleChoice":
+      case "StarRating":
+      case "NpsScale":
+      case "StarChoice":
+      case "NpsOptions": {
+        const radio = form.querySelector(`input[name="${q.questionId}"]:checked`);
+        return Boolean(radio && radio.value !== void 0 && radio.value !== "");
+      }
+      default:
+        return true;
+    }
+  }
   async function renderModalSurvey(flow) {
     const { payload, id } = flow;
     if (!payload.questions || payload.questions.length === 0) {
@@ -7481,17 +7514,19 @@ var DAP = (function (exports) {
             responses.push(questionData);
           }
         }
-        if (responses.length === 0) {
+        if (responses.length < payload.questions.length) {
           if (submitBtnEl) {
-            submitBtnEl.disabled = false;
-            submitBtnEl.style.opacity = "1";
+            submitBtnEl.disabled = true;
+            submitBtnEl.style.opacity = "0.5";
+            submitBtnEl.style.cursor = "not-allowed";
+            submitBtnEl.title = "Please answer all questions to submit";
             submitBtnEl.textContent = "Submit";
           }
           const existingError = form.querySelector(".dap-survey-error");
           if (existingError) existingError.remove();
           const errorMsg = document.createElement("div");
           errorMsg.className = "dap-survey-error";
-          errorMsg.textContent = "Please answer the survey before submitting.";
+          errorMsg.textContent = "Please answer all questions before submitting.";
           form.prepend(errorMsg);
           setTimeout(() => {
             errorMsg.remove();
@@ -7560,6 +7595,23 @@ var DAP = (function (exports) {
       form.appendChild(questionEl);
     });
     shell.body.appendChild(form);
+    const checkAllAnswered = () => {
+      if (!payload.questions || payload.questions.length === 0) return true;
+      return payload.questions.every((q) => isQuestionAnswered(form, q));
+    };
+    const updateSubmitBtnState = () => {
+      const allAnswered = checkAllAnswered();
+      shell.nextBtn.disabled = !allAnswered;
+      shell.nextBtn.style.opacity = allAnswered ? "1" : "0.5";
+      shell.nextBtn.style.cursor = allAnswered ? "pointer" : "not-allowed";
+      shell.nextBtn.title = allAnswered ? "" : "Please answer all questions to submit";
+      if (allAnswered) {
+        form.querySelector(".dap-survey-error")?.remove();
+      }
+    };
+    form.addEventListener("input", updateSubmitBtnState);
+    form.addEventListener("change", updateSubmitBtnState);
+    updateSubmitBtnState();
     setTimeout(() => {
       adjustSurveyModalSize(shell.dlg, shell.body);
     }, 0);
@@ -8330,6 +8382,7 @@ var DAP = (function (exports) {
       });
       hiddenStatusInput.value = "0";
       clearButton.style.display = "none";
+      starContainer.dispatchEvent(new Event("change", { bubbles: true }));
     });
     ratingWrapper.appendChild(starContainer);
     ratingWrapper.appendChild(clearButton);
