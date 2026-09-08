@@ -376,9 +376,8 @@ export const popularServices = mockCogniorServices.filter(s => s.popular);
 export const featuredServices = mockCogniorServices.filter(s => s.featured);
 
 // Analytics Events for DAP instrumentation
-export const trackEvent = (eventName: string, properties?: Record<string, any>) => {
-  // In a real implementation, this would send to analytics service
-  console.log(`[DAP Analytics] ${eventName}`, properties);
+export const trackEvent = (_eventName: string, _properties?: Record<string, any>) => {
+  // Mock simulation disabled
 };
 
 // Common event types
