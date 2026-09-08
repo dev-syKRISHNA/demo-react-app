@@ -1,0 +1,17 @@
+"GitHUb Deployed"
+{
+  "organizationid": "01a00e8c-5b58-7a32-aa3b-76d0a0a7c42c",
+  "siteid": "01a04281-6ef0-7c22-9684-33c738662139",
+  "apikey": "01a00e8c5b587a32aa3b76d0a0a7c42c_01a042816ef07c22968433c738662139_bvXcI37MFGDDIRlXHB3hGQLR21bWI9xdZSFZlx8x9DA=",
+  "apiurl": "https://iap-api-dev.cognior.com/api/v1"
+}
+
+Local Deployed
+
+{
+  "organizationid": "01a00e8c-5b58-7a32-aa3b-76d0a0a7c42c",
+  "siteid": "01a05d4d-bfb0-7eba-81c5-f8f61f3c98a3",
+  "apikey": "01a00e8c5b587a32aa3b76d0a0a7c42c_01a05d4dbfb07eba81c5f8f61f3c98a3_B78X8tmt3a2/9gx3l+Z+ljMqq0FdHWu0cEdgg6vJNW0=",
+  "apiurl": "https://iap-api-dev.cognior.com/api/v1"
+}
+

@@ -12712,7 +12712,7 @@ var DAP = (function (exports) {
           const rawClass = payload.classification || "Billable";
           if (typeof rawClass === "number") return rawClass;
           const lower = String(rawClass).toLowerCase();
-          if (lower === "nonbillable" || lower === "non_billable" || lower === "non-billable") return 1;
+          if (lower === "nonbillable" || lower === "non_billable" || lower === "non-billable" || lower === "informational") return 1;
           if (lower === "enforcement") return 2;
           return 0;
         })(),
@@ -12754,6 +12754,21 @@ var DAP = (function (exports) {
         },
         // Events during normal flow execution are Billable
         classification: "Billable"
+      });
+    }
+    /**
+     * Emits the non-metered capability metric for flow_preview.rendered.
+     * Called only when a preview-session flow is visibly committed to the page.
+     * Per V1 spec: moduleKey="player", classification=Informational (1), no previewSessionId in dimensions.
+     */
+    trackPreviewRendered(flowId) {
+      this.track("flow_preview.rendered", {
+        featureKey: "flow_preview",
+        classification: "Informational",
+        dimensions: {
+          flowId
+          // previewSessionId deliberately excluded — security invariant
+        }
       });
     }
     /**
@@ -12992,6 +13007,59 @@ var DAP = (function (exports) {
     return currentLevelIndex >= requestedLevelIndex;
   }
 
+  // src/utils/previewMode.ts
+  var PREVIEW_SESSION_STORAGE_KEY = "dap_preview_session_id";
+  var PREVIEW_FLOW_ID_STORAGE_KEY = "dap_preview_flow_id";
+  function clearPreviewSession() {
+    try {
+      sessionStorage.removeItem(PREVIEW_SESSION_STORAGE_KEY);
+      sessionStorage.removeItem(PREVIEW_FLOW_ID_STORAGE_KEY);
+      if (typeof window !== "undefined") {
+        window.postMessage({ source: "DAP_PAGE", type: "DAP_CLEAR_PREVIEW_SESSION" }, "*");
+      }
+      const url = new URL(window.location.href);
+      let changed = false;
+      if (url.searchParams.has("previewSessionId")) {
+        url.searchParams.delete("previewSessionId");
+        changed = true;
+      }
+      if (url.searchParams.has("flowId")) {
+        url.searchParams.delete("flowId");
+        changed = true;
+      }
+      if (changed) {
+        const cleanUrl = url.searchParams.toString() ? `${url.pathname}?${url.searchParams.toString()}${url.hash}` : `${url.pathname}${url.hash}`;
+        window.history.replaceState({}, "", cleanUrl);
+      }
+      console.debug("[DAP] Preview session cleared from storage, URL and extension storage");
+    } catch (error) {
+      console.error("[DAP] Error clearing preview session:", error);
+    }
+  }
+  function detectPreviewMode() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const previewSessionIdParam = urlParams.get("previewSessionId");
+      const flowIdParam = urlParams.get("flowId");
+      if (!previewSessionIdParam?.trim() || !flowIdParam?.trim()) {
+        const storedSessionId = sessionStorage.getItem(PREVIEW_SESSION_STORAGE_KEY);
+        const storedFlowId = sessionStorage.getItem(PREVIEW_FLOW_ID_STORAGE_KEY);
+        if (storedSessionId && storedFlowId) {
+          return { isPreviewMode: true, previewSessionId: storedSessionId, flowId: storedFlowId };
+        }
+        return { isPreviewMode: false, previewSessionId: null, flowId: null };
+      }
+      const previewSessionId = previewSessionIdParam.trim();
+      const flowId = flowIdParam.trim();
+      sessionStorage.setItem(PREVIEW_SESSION_STORAGE_KEY, previewSessionId);
+      sessionStorage.setItem(PREVIEW_FLOW_ID_STORAGE_KEY, flowId);
+      return { isPreviewMode: true, previewSessionId, flowId };
+    } catch (error) {
+      console.error("[DAP] Error detecting preview mode:", error);
+      return { isPreviewMode: false, previewSessionId: null, flowId: null };
+    }
+  }
+
   // src/tracking.ts
   var StepTrackingState = class {
     constructor() {
@@ -13049,6 +13117,10 @@ var DAP = (function (exports) {
       console.debug(`[DAP Tracking] Step already tracked, skipping: ${flowId}:${stepId}`);
       return;
     }
+    if (detectPreviewMode().isPreviewMode) {
+      console.debug(`[DAP Tracking] Preview mode: skipping flow.step_viewed for ${flowId}:${stepId}`);
+      return;
+    }
     if (!hasConsentLevel("essential" /* ESSENTIAL */)) {
       console.debug("[DAP Tracking] Step view tracking blocked: insufficient consent level");
       return;
@@ -13074,59 +13146,6 @@ var DAP = (function (exports) {
   }
   function resetFlowTracking(flowId) {
     trackingState.reset(flowId);
-  }
-
-  // src/utils/previewMode.ts
-  var PREVIEW_SESSION_STORAGE_KEY = "dap_preview_session_id";
-  var PREVIEW_FLOW_ID_STORAGE_KEY = "dap_preview_flow_id";
-  function clearPreviewSession() {
-    try {
-      sessionStorage.removeItem(PREVIEW_SESSION_STORAGE_KEY);
-      sessionStorage.removeItem(PREVIEW_FLOW_ID_STORAGE_KEY);
-      if (typeof window !== "undefined") {
-        window.postMessage({ source: "DAP_PAGE", type: "DAP_CLEAR_PREVIEW_SESSION" }, "*");
-      }
-      const url = new URL(window.location.href);
-      let changed = false;
-      if (url.searchParams.has("previewSessionId")) {
-        url.searchParams.delete("previewSessionId");
-        changed = true;
-      }
-      if (url.searchParams.has("flowId")) {
-        url.searchParams.delete("flowId");
-        changed = true;
-      }
-      if (changed) {
-        const cleanUrl = url.searchParams.toString() ? `${url.pathname}?${url.searchParams.toString()}${url.hash}` : `${url.pathname}${url.hash}`;
-        window.history.replaceState({}, "", cleanUrl);
-      }
-      console.debug("[DAP] Preview session cleared from storage, URL and extension storage");
-    } catch (error) {
-      console.error("[DAP] Error clearing preview session:", error);
-    }
-  }
-  function detectPreviewMode() {
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const previewSessionIdParam = urlParams.get("previewSessionId");
-      const flowIdParam = urlParams.get("flowId");
-      if (!previewSessionIdParam?.trim() || !flowIdParam?.trim()) {
-        const storedSessionId = sessionStorage.getItem(PREVIEW_SESSION_STORAGE_KEY);
-        const storedFlowId = sessionStorage.getItem(PREVIEW_FLOW_ID_STORAGE_KEY);
-        if (storedSessionId && storedFlowId) {
-          return { isPreviewMode: true, previewSessionId: storedSessionId, flowId: storedFlowId };
-        }
-        return { isPreviewMode: false, previewSessionId: null, flowId: null };
-      }
-      const previewSessionId = previewSessionIdParam.trim();
-      const flowId = flowIdParam.trim();
-      sessionStorage.setItem(PREVIEW_SESSION_STORAGE_KEY, previewSessionId);
-      sessionStorage.setItem(PREVIEW_FLOW_ID_STORAGE_KEY, flowId);
-      return { isPreviewMode: true, previewSessionId, flowId };
-    } catch (error) {
-      console.error("[DAP] Error detecting preview mode:", error);
-      return { isPreviewMode: false, previewSessionId: null, flowId: null };
-    }
   }
 
   // src/state/store.ts
@@ -14148,6 +14167,7 @@ var DAP = (function (exports) {
         completedPageId: null
       };
       this._currentFlow = null;
+      this._isPreviewMode = false;
       this._stepTriggerListeners = /* @__PURE__ */ new Map();
       this._domObservers = /* @__PURE__ */ new Map();
       this._onFlowEnd = null;
@@ -14592,6 +14612,12 @@ var DAP = (function (exports) {
       }
       return this._instance;
     }
+    setPreviewMode(isPreview) {
+      this._isPreviewMode = isPreview;
+    }
+    isPreviewMode() {
+      return this._isPreviewMode;
+    }
     /**
      * 🚨 CRITICAL FIX: Validate flow frequency and execution limits   * Implements the OneTime + maxRuns = 1 validation as required
      */
@@ -14603,7 +14629,7 @@ var DAP = (function (exports) {
         if (!silent) console.debug(...args);
       };
       const previewMode = detectPreviewMode();
-      if (previewMode.isPreviewMode) {
+      if (this._isPreviewMode || previewMode.isPreviewMode || flowData.isPreview) {
         logDebug(`[DAP] \u{1F7E2} PREVIEW MODE: Bypassing frequency validation for flow ${flowData.flowId}`);
         return true;
       }
@@ -14794,6 +14820,9 @@ var DAP = (function (exports) {
      */
     async startFlow(flowData) {
       console.debug(`[DAP] \u{1F680} Starting flow: ${flowData.flowId}`);
+      if (flowData.isPreview || detectPreviewMode().isPreviewMode && (!detectPreviewMode().flowId || detectPreviewMode().flowId === flowData.flowId)) {
+        this._isPreviewMode = true;
+      }
       let resumePoint = null;
       try {
         const snapshotStr = sessionStorage.getItem(`dap_flow_snapshot_${flowData.flowId}`);
@@ -14906,9 +14935,14 @@ var DAP = (function (exports) {
         isFlowRunning: true,
         activeStepIndex: this._state.activeStep
       });
-      telemetryService.trackPlayerEvent("flow.launched", flowData.flowId).catch((err) => {
-        console.warn("[DAP] Failed to send flow.launched telemetry:", err);
-      });
+      if (this._isPreviewMode) {
+        telemetryService.trackPreviewRendered(flowData.flowId);
+        console.debug(`[DAP] Preview flow visibly committed \u2014 emitting flow_preview.rendered for ${flowData.flowId}`);
+      } else {
+        telemetryService.trackPlayerEvent("flow.launched", flowData.flowId).catch((err) => {
+          console.warn("[DAP] Failed to send flow.launched telemetry:", err);
+        });
+      }
       this.executeStep();
     }
     /**
@@ -14919,7 +14953,7 @@ var DAP = (function (exports) {
       if (!this._state.flowInProgress) return;
       const flowId = this._state.activeFlowId;
       console.debug(`[DAP] Aborting flow: ${flowId}`);
-      if (flowId) {
+      if (flowId && !this._isPreviewMode) {
         telemetryService.trackPlayerEvent("flow.exited", flowId).catch((err) => {
           console.warn("[DAP] Failed to send flow.exited telemetry:", err);
         });
@@ -17217,7 +17251,7 @@ var DAP = (function (exports) {
       const flowData = this._currentFlow;
       const flowId = this._state.activeFlowId;
       console.debug(`[DAP] \u2705 FLOW COMPLETED: ${flowId}`);
-      if (flowId) {
+      if (flowId && !this._isPreviewMode) {
         telemetryService.trackPlayerEvent("flow.completed", flowId).catch((err) => {
           console.warn("[DAP] Failed to send flow.completed telemetry:", err);
         });
@@ -17543,6 +17577,7 @@ var DAP = (function (exports) {
      */
     destroy() {
       console.debug(`[DAP] Destroying FlowEngine for flow: ${this._state.activeFlowId}`);
+      this._isPreviewMode = false;
       if (this._currentFlow) {
         this._currentFlow.steps.forEach((_, idx) => {
           this.cleanupCurrentStep(idx);
@@ -17821,6 +17856,9 @@ var DAP = (function (exports) {
         existing.engine.destroy();
       }
       const engine = new FlowEngine();
+      if (flowData.isPreview) {
+        engine.setPreviewMode(true);
+      }
       const managed = {
         flowId,
         engine,
@@ -19104,6 +19142,7 @@ var DAP = (function (exports) {
         userContext: userContextService,
         flowEngine,
         multiFlowOrchestrator,
+        telemetryService,
         // ✅ Cache debugging methods for cross-site flows
         getFlowFromCache,
         clearFlowCache,
@@ -19222,10 +19261,12 @@ var DAP = (function (exports) {
       log("Preview mode detected, flowId:", previewMode.flowId, "sessionId:", previewMode.previewSessionId);
       _previewSessionId = previewMode.previewSessionId;
       _pendingFlowIds = [previewMode.flowId];
+      flowEngine.setPreviewMode(true);
       await initializeFlowsWhenReady();
       return;
     } else {
       _previewSessionId = null;
+      flowEngine.setPreviewMode(false);
       clearPreviewSession();
     }
     const cachedFlowData = [];
@@ -19380,7 +19421,11 @@ var DAP = (function (exports) {
           console.error("[DAP] Failed to resolve flow data for flow ID:", flowId);
           continue;
         }
-        flowDataList.push(normalizeRawFlowData(rawFlowData, flowId));
+        const flowData = normalizeRawFlowData(rawFlowData, flowId);
+        if (_previewSessionId) {
+          flowData.isPreview = true;
+        }
+        flowDataList.push(flowData);
       }
       if (flowDataList.length > 0) {
         await multiFlowOrchestrator.startFlows(flowDataList);
@@ -19570,6 +19615,9 @@ var DAP = (function (exports) {
         throw new Error(`Flow data not found for ID: ${flowId}`);
       }
       const flowData = normalizeRawFlowData(rawFlowData, flowId);
+      if (previewSessionId) {
+        flowData.isPreview = true;
+      }
       log("Starting flow from backend:", flowId);
       return multiFlowOrchestrator.startFlow(flowData);
     } catch (error) {
