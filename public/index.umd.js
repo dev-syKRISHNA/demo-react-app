@@ -7283,6 +7283,53 @@ var DAP = (function (exports) {
   opacity: 0.9;
 }
 
+.dap-submit-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.dap-disabled-tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  right: 0;
+  background: var(--dap-survey-ink, #0f172a);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  white-space: normal;
+  width: max-content;
+  max-width: 220px;
+  text-align: center;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 160ms ease, transform 160ms ease;
+  visibility: hidden;
+}
+
+.dap-disabled-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  right: 32px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: var(--dap-survey-ink, #0f172a) transparent transparent transparent;
+}
+
+.dap-submit-wrap:hover .dap-disabled-tooltip[data-visible="true"],
+.dap-submit-wrap:focus-within .dap-disabled-tooltip[data-visible="true"] {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+}
+
 .dap-survey-intro {
   font-size: 14px;
   line-height: 1.6;
@@ -7519,7 +7566,7 @@ var DAP = (function (exports) {
             submitBtnEl.disabled = true;
             submitBtnEl.style.opacity = "0.5";
             submitBtnEl.style.cursor = "not-allowed";
-            submitBtnEl.title = "Please answer all questions to submit";
+            submitBtnEl.removeAttribute("title");
             submitBtnEl.textContent = "Submit";
           }
           const existingError = form.querySelector(".dap-survey-error");
@@ -7604,7 +7651,15 @@ var DAP = (function (exports) {
       shell.nextBtn.disabled = !allAnswered;
       shell.nextBtn.style.opacity = allAnswered ? "1" : "0.5";
       shell.nextBtn.style.cursor = allAnswered ? "pointer" : "not-allowed";
-      shell.nextBtn.title = allAnswered ? "" : "Please answer all questions to submit";
+      shell.submitWrap.style.cursor = allAnswered ? "pointer" : "not-allowed";
+      shell.nextBtn.removeAttribute("title");
+      if (shell.disabledTooltip) {
+        shell.disabledTooltip.dataset.visible = (!allAnswered).toString();
+        if (allAnswered) {
+          shell.disabledTooltip.style.opacity = "0";
+          shell.disabledTooltip.style.visibility = "hidden";
+        }
+      }
       if (allAnswered) {
         form.querySelector(".dap-survey-error")?.remove();
       }
@@ -7794,12 +7849,39 @@ var DAP = (function (exports) {
   `;
     submitBtn.textContent = payload.submitText || "Submit";
     submitBtn.disabled = true;
-    submitBtn.title = "Please complete the survey to submit";
+    const microSubmitWrap = document.createElement("div");
+    microSubmitWrap.className = "dap-submit-wrap";
+    microSubmitWrap.style.cursor = "not-allowed";
+    const microTooltip = document.createElement("div");
+    microTooltip.className = "dap-disabled-tooltip";
+    microTooltip.setAttribute("role", "tooltip");
+    microTooltip.textContent = "Please complete the survey to submit, or click " + (payload.cancelText || "Dismiss") + ".";
+    microTooltip.dataset.visible = "true";
+    microSubmitWrap.appendChild(submitBtn);
+    microSubmitWrap.appendChild(microTooltip);
+    microSubmitWrap.addEventListener("mouseenter", () => {
+      if (microTooltip.dataset.visible === "true") {
+        microTooltip.style.opacity = "1";
+        microTooltip.style.transform = "translateY(0)";
+        microTooltip.style.visibility = "visible";
+      }
+    });
+    microSubmitWrap.addEventListener("mouseleave", () => {
+      microTooltip.style.opacity = "0";
+      microTooltip.style.transform = "translateY(4px)";
+      microTooltip.style.visibility = "hidden";
+    });
     const setSubmitEnabled = (enabled) => {
       submitBtn.disabled = !enabled;
       submitBtn.style.opacity = enabled ? "1" : "0.5";
       submitBtn.style.cursor = enabled ? "pointer" : "not-allowed";
-      submitBtn.title = enabled ? "" : "Please complete the survey to submit";
+      microSubmitWrap.style.cursor = enabled ? "pointer" : "not-allowed";
+      submitBtn.removeAttribute("title");
+      microTooltip.dataset.visible = (!enabled).toString();
+      if (enabled) {
+        microTooltip.style.opacity = "0";
+        microTooltip.style.visibility = "hidden";
+      }
     };
     const surveyType = payload.type || "choice";
     if (surveyType === "rating") {
@@ -7836,7 +7918,7 @@ var DAP = (function (exports) {
       }
     });
     buttonsEl.appendChild(cancelBtn);
-    buttonsEl.appendChild(submitBtn);
+    buttonsEl.appendChild(microSubmitWrap);
     microSurvey.appendChild(buttonsEl);
     return microSurvey;
   }
@@ -8488,14 +8570,36 @@ var DAP = (function (exports) {
     nextBtn.className = "dap-cta";
     nextBtn.type = "button";
     nextBtn.textContent = "Submit";
+    const submitWrap = document.createElement("div");
+    submitWrap.className = "dap-submit-wrap";
+    submitWrap.style.cursor = "not-allowed";
+    const disabledTooltip = document.createElement("div");
+    disabledTooltip.className = "dap-disabled-tooltip";
+    disabledTooltip.setAttribute("role", "tooltip");
+    disabledTooltip.textContent = "Please answer all questions to submit, or click Cancel to dismiss.";
+    disabledTooltip.dataset.visible = "true";
+    submitWrap.appendChild(nextBtn);
+    submitWrap.appendChild(disabledTooltip);
+    submitWrap.addEventListener("mouseenter", () => {
+      if (disabledTooltip.dataset.visible === "true") {
+        disabledTooltip.style.opacity = "1";
+        disabledTooltip.style.transform = "translateY(0)";
+        disabledTooltip.style.visibility = "visible";
+      }
+    });
+    submitWrap.addEventListener("mouseleave", () => {
+      disabledTooltip.style.opacity = "0";
+      disabledTooltip.style.transform = "translateY(4px)";
+      disabledTooltip.style.visibility = "hidden";
+    });
     footer.appendChild(prevBtn);
-    footer.appendChild(nextBtn);
+    footer.appendChild(submitWrap);
     dlg.appendChild(headerBar);
     dlg.appendChild(body);
     dlg.appendChild(footer);
     root.appendChild(wrap);
     wrap.appendChild(dlg);
-    return { wrap, dlg, headerBar, titleEl, body, footer, footerEl: footer, prevBtn, nextBtn, closeBtn };
+    return { wrap, dlg, headerBar, titleEl, body, footer, footerEl: footer, prevBtn, nextBtn, submitWrap, disabledTooltip, closeBtn };
   }
   function ensureRoot() {
     let host = document.querySelector("dap-root");
