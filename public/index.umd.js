@@ -7427,22 +7427,25 @@ var DAP = (function (exports) {
             case "Dropdown": {
               const radio = form.querySelector(`input[name="${q.questionId}"]:checked`);
               const select = form.querySelector(`select[name="${q.questionId}"]`);
-              questionData.answer = radio?.value || select?.value || null;
+              const chosen = radio?.value || select?.value;
+              questionData.answer = chosen ? chosen : null;
               break;
             }
             case "MultipleChoice": {
               const checkboxes = Array.from(form.querySelectorAll(`input[name="${q.questionId}[]"]:checked`));
-              questionData.answer = checkboxes.map((cb) => cb.value);
+              questionData.answer = checkboxes.length > 0 ? checkboxes.map((cb) => cb.value) : null;
               break;
             }
             case "TextSingle": {
               const input = form.querySelector(`input[name="${q.questionId}"]`);
-              questionData.answer = input?.value || "";
+              const textVal = input?.value?.trim();
+              questionData.answer = textVal ? textVal : null;
               break;
             }
             case "TextMulti": {
               const textarea = form.querySelector(`textarea[name="${q.questionId}"]`);
-              questionData.answer = textarea?.value || "";
+              const textVal = textarea?.value?.trim();
+              questionData.answer = textVal ? textVal : null;
               break;
             }
             case "OpinionScale":
@@ -7477,6 +7480,23 @@ var DAP = (function (exports) {
           if (questionData.answer !== null) {
             responses.push(questionData);
           }
+        }
+        if (responses.length === 0) {
+          if (submitBtnEl) {
+            submitBtnEl.disabled = false;
+            submitBtnEl.style.opacity = "1";
+            submitBtnEl.textContent = "Submit";
+          }
+          const existingError = form.querySelector(".dap-survey-error");
+          if (existingError) existingError.remove();
+          const errorMsg = document.createElement("div");
+          errorMsg.className = "dap-survey-error";
+          errorMsg.textContent = "Please answer the survey before submitting.";
+          form.prepend(errorMsg);
+          setTimeout(() => {
+            errorMsg.remove();
+          }, 4e3);
+          return;
         }
         const submissionData = {
           stepId: payload.stepId,
@@ -7682,15 +7702,6 @@ var DAP = (function (exports) {
     microSurvey.appendChild(questionEl);
     const contentEl = document.createElement("div");
     contentEl.style.marginBottom = "16px";
-    const surveyType = payload.type || "choice";
-    if (surveyType === "rating") {
-      createRatingContent(contentEl, payload);
-    } else if (surveyType === "choice") {
-      createChoiceContent(contentEl, payload);
-    } else if (surveyType === "text") {
-      createTextContent(contentEl, payload);
-    }
-    microSurvey.appendChild(contentEl);
     const buttonsEl = document.createElement("div");
     buttonsEl.style.cssText = `
     display: flex;
@@ -7722,34 +7733,54 @@ var DAP = (function (exports) {
     font-family: inherit;
     font-size: 13px;
     font-weight: 700;
-    cursor: pointer;
+    cursor: not-allowed;
+    opacity: 0.5;
     transition: all 160ms ease;
     display: inline-flex;
     align-items: center;
     gap: 6px;
   `;
     submitBtn.textContent = payload.submitText || "Submit";
+    submitBtn.disabled = true;
+    submitBtn.title = "Please complete the survey to submit";
+    const setSubmitEnabled = (enabled) => {
+      submitBtn.disabled = !enabled;
+      submitBtn.style.opacity = enabled ? "1" : "0.5";
+      submitBtn.style.cursor = enabled ? "pointer" : "not-allowed";
+      submitBtn.title = enabled ? "" : "Please complete the survey to submit";
+    };
+    const surveyType = payload.type || "choice";
+    if (surveyType === "rating") {
+      createRatingContent(contentEl, payload, id, setSubmitEnabled);
+    } else if (surveyType === "choice") {
+      createChoiceContent(contentEl, payload, id, setSubmitEnabled);
+    } else if (surveyType === "text") {
+      createTextContent(contentEl, payload, id, setSubmitEnabled);
+    }
+    microSurvey.appendChild(contentEl);
     submitBtn.addEventListener("click", async () => {
       const formData = extractMicroSurveyData(microSurvey, payload);
-      if (formData !== null && formData !== void 0) {
-        try {
-          submitBtn.textContent = "Submitting\u2026";
-          submitBtn.style.opacity = "0.7";
-          submitBtn.disabled = true;
-          await submitMicroSurveyData(formData, payload, flow);
-          submitBtn.textContent = "\u2713 Thanks!";
-          submitBtn.style.opacity = "1";
-          submitBtn.classList.add("dap-cta--success");
-          setTimeout(() => {
-            cleanupMicroSurvey(id);
-            payload._completionTracker?.onComplete?.();
-          }, 700);
-        } catch (error) {
-          console.error("[DAP] Micro survey submission failed:", error);
-          submitBtn.textContent = payload.submitText || "Submit";
-          submitBtn.style.opacity = "1";
-          submitBtn.disabled = false;
-        }
+      if (formData === null || formData === void 0 || typeof formData === "string" && !formData.trim()) {
+        setSubmitEnabled(false);
+        return;
+      }
+      try {
+        submitBtn.textContent = "Submitting\u2026";
+        submitBtn.style.opacity = "0.7";
+        submitBtn.disabled = true;
+        await submitMicroSurveyData(formData, payload, flow);
+        submitBtn.textContent = "\u2713 Thanks!";
+        submitBtn.style.opacity = "1";
+        submitBtn.classList.add("dap-cta--success");
+        setTimeout(() => {
+          cleanupMicroSurvey(id);
+          payload._completionTracker?.onComplete?.();
+        }, 700);
+      } catch (error) {
+        console.error("[DAP] Micro survey submission failed:", error);
+        submitBtn.textContent = payload.submitText || "Submit";
+        submitBtn.style.opacity = "1";
+        submitBtn.disabled = false;
       }
     });
     buttonsEl.appendChild(cancelBtn);
@@ -7775,10 +7806,11 @@ var DAP = (function (exports) {
     const cleanup = () => cleanupMicroSurvey(state.id);
     state.cleanup.push(cleanup);
   }
-  function createRatingContent(container, payload, id) {
+  function createRatingContent(container, payload, id, onChange) {
     const min = payload.rating?.min || 1;
     const max = payload.rating?.max || 5;
     const ratingContainer = document.createElement("div");
+    ratingContainer.className = "dap-rating-container";
     ratingContainer.style.cssText = `
     display: flex;
     gap: 6px;
@@ -7824,14 +7856,16 @@ var DAP = (function (exports) {
           btn.style.transform = isFilled ? "scale(1.1)" : "scale(1)";
         });
         ratingContainer.dataset.value = i.toString();
+        onChange?.(true);
       });
       ratingContainer.appendChild(star);
     }
     container.appendChild(ratingContainer);
   }
-  function createChoiceContent(container, payload, id) {
+  function createChoiceContent(container, payload, id, onChange) {
     if (!payload.options?.length) return;
     const choiceContainer = document.createElement("div");
+    choiceContainer.className = "dap-choice-container";
     choiceContainer.style.cssText = `
     display: flex;
     flex-direction: column;
@@ -7883,13 +7917,15 @@ var DAP = (function (exports) {
         optionEl.style.transform = "translateX(4px)";
         optionEl.style.boxShadow = "0 4px 14px rgba(var(--dap-primary-rgb, 14,165,233), 0.18)";
         choiceContainer.dataset.value = option.value;
+        onChange?.(true);
       });
       choiceContainer.appendChild(optionEl);
     });
     container.appendChild(choiceContainer);
   }
-  function createTextContent(container, payload, id) {
+  function createTextContent(container, payload, id, onChange) {
     const textarea = document.createElement("textarea");
+    textarea.className = "dap-text-input";
     textarea.placeholder = payload.placeholder || "Share your thoughts\u2026";
     textarea.style.cssText = `
     width: 100%;
@@ -7906,6 +7942,10 @@ var DAP = (function (exports) {
     box-sizing: border-box;
     outline: none;
   `;
+    textarea.addEventListener("input", () => {
+      const hasText = textarea.value.trim().length > 0;
+      onChange?.(hasText);
+    });
     textarea.addEventListener("focus", () => {
       textarea.style.borderColor = "var(--dap-primary, #0EA5E9)";
       textarea.style.background = "rgba(var(--dap-primary-rgb, 14,165,233), 0.07)";
@@ -7922,16 +7962,17 @@ var DAP = (function (exports) {
     const surveyType = payload.type || "choice";
     switch (surveyType) {
       case "rating": {
-        const ratingContainer = element.querySelector("[data-value]");
+        const ratingContainer = element.querySelector(".dap-rating-container");
         return ratingContainer?.dataset.value ? parseInt(ratingContainer.dataset.value) : null;
       }
       case "choice": {
-        const choiceContainer = element.querySelector("[data-value]");
+        const choiceContainer = element.querySelector(".dap-choice-container");
         return choiceContainer?.dataset.value || null;
       }
       case "text": {
         const textarea = element.querySelector("textarea");
-        return textarea?.value || "";
+        const val = textarea?.value?.trim();
+        return val ? val : null;
       }
       default:
         return null;
