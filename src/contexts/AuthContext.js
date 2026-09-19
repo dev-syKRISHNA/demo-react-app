@@ -43,22 +43,6 @@ function saveSession(user) {
   }
 }
 
-function notifySDKUser(user) {
-  if (window.DAP && window.DAP.setUser) {
-    window.DAP.setUser({
-      id: user.id,
-      name: user.name,
-      email: user.email
-    });
-  }
-}
-
-function clearSDKUser() {
-  if (window.DAP && window.DAP.clearUser) {
-    window.DAP.clearUser();
-  }
-}
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,7 +58,6 @@ export function AuthProvider({ children }) {
     const session = getStoredSession();
     if (session) {
       setUser(session);
-      notifySDKUser(session);
     }
     setIsLoading(false);
   }, []);
@@ -90,7 +73,6 @@ export function AuthProvider({ children }) {
     const sessionUser = { id: found.id, name: found.name, email: found.email };
     setUser(sessionUser);
     saveSession(sessionUser);
-    notifySDKUser(sessionUser);
     return { success: true };
   }, []);
 
@@ -113,14 +95,12 @@ export function AuthProvider({ children }) {
     const sessionUser = { id: newUser.id, name: newUser.name, email: newUser.email };
     setUser(sessionUser);
     saveSession(sessionUser);
-    notifySDKUser(sessionUser);
     return { success: true };
   }, []);
 
   const logout = useCallback(() => {
     setUser(null);
     saveSession(null);
-    clearSDKUser();
   }, []);
 
   const quickLogin = useCallback(() => {

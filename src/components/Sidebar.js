@@ -15,7 +15,8 @@ import {
   Sun,
   Moon,
   Menu,
-  X
+  X,
+  ExternalLink
 } from 'lucide-react';
 
 const navItems = [
@@ -25,6 +26,7 @@ const navItems = [
   { label: 'Team', href: '/team', icon: Users },
   { label: 'Billing', href: '/billing', icon: CreditCard },
   { label: 'Settings', href: '/settings', icon: Settings },
+  { label: 'Demo Cognior', href: 'https://democognior.netlify.app/', icon: ExternalLink, external: true },
 ];
 
 export default function Sidebar() {
@@ -66,6 +68,23 @@ export default function Sidebar() {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
+
+            if (item.external) {
+              return (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="sidebar-link"
+                  onClick={() => document.body.classList.remove('mobile-menu-open')}
+                >
+                  <Icon size={20} className="sidebar-link-icon" />
+                  <span>{item.label}</span>
+                </a>
+              );
+            }
+
             return (
               <Link
                 key={item.href}
