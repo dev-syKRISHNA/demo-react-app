@@ -9,6 +9,7 @@
   <meta name="description" content="Web site created using create-react-app" />
   <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
 
+  <meta name="msapplication-TileColor" content="#0078d4" />
   <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
 
   <title>React App</title>
@@ -19,6 +20,18 @@
         document.documentElement.setAttribute('data-theme', theme);
       } catch (e) {}
     })();
+  </script>
+
+  <!-- DAP SDK Integration -->
+  <link rel="preload" href="%PUBLIC_URL%/index.umd.js" as="script">
+  <script src="%PUBLIC_URL%/index.umd.js"></script>
+  <script>
+    if (window.DAP && window.DAP.init) {
+      window.DAP.init({
+        configUrl: "%PUBLIC_URL%/iap-config.json",
+        debug: true
+      }).catch(function (err) { console.error("DAP SDK Init Error:", err); });
+    }
   </script>
 </head>
 
